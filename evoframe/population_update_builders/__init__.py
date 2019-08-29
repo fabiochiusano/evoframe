@@ -1,0 +1,2 @@
+from evoframe.population_update_builders.population_update_builder import PopulationUpdateBuilder
+from evoframe.population_update_builders.population_update_builder_static import PopulationUpdateBuilderStatic
