@@ -36,12 +36,14 @@ class PopulationManager:
     def run(self, num_epochs):
         pool = ProcessPool(self.num_threads) if self.num_threads > 1 else None
         pop = self.generate_pop()
-        env = self.update_env_f({}, pop)
+        env = {"rewards": {}}
+        env = self.update_env_f(env, pop)
         for num_epoch in range(num_epochs):
             rewards = self.compute_rewards(pool, pop, env)
             pop, rewards = self.rank_pop(pop, rewards)
+            env["rewards"][num_epoch] = rewards
             if num_epoch < num_epochs - 1:
                 pop = self.get_new_pop_func(pop, rewards)
                 env = self.update_env_f(env, pop)
-            print(rewards[0])
-        return pop
+            print("Epoch {}, best reward is {}".format(num_epoch,rewards[0]))
+        return pop, env

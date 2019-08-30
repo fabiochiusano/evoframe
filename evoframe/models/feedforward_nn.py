@@ -9,10 +9,11 @@ class FeedForwardNetwork(Model):
         # random initialization
         self.layer_sizes = layer_sizes
         self.weights = np.array(
-            [np.random.randn(layer_sizes[index], layer_sizes[index+1]) * 2 - 1 # expand over (-1, 1)
+            [np.random.randn(layer_sizes[index], layer_sizes[index+1])
             for index
             in range(len(layer_sizes)-1)]
         )
+        #self.biases = np.array([np.random.randn(ls) for ls in layer_sizes[1:]])
         self.activations = activations
         self.last_activation = last_activation
 

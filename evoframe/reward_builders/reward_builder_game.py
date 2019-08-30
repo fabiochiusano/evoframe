@@ -1,11 +1,11 @@
-import evoframe.env as ENV
+from evoframe.env import Env
 from evoframe.reward_builders import RewardBuilder
 import copy
+from enum import Enum
 
-def dict_functional_update(d, key, value):
-    new_d = copy.deepcopy(d)
-    new_d[key] = value
-    return new_d
+class TournamentMode(Enum):
+    VS_CURRENT_POP = 1
+    VS_BEST_OF_EACH_GEN = 2
 
 class RewardBuilderGame(RewardBuilder):
     def __init__(self):
@@ -13,6 +13,7 @@ class RewardBuilderGame(RewardBuilder):
         self.agent_wrapper_func = None
         self.competitive_tournament = False
         self.keep_only = -1
+        self.tournament_mode = None
 
     def with_game_creation_function(self, game_creation_function):
         self.game_creation_function = game_creation_function
@@ -22,8 +23,9 @@ class RewardBuilderGame(RewardBuilder):
         self.agent_wrapper_func = agent_wrapper_func
         return self
 
-    def with_competitive_tournament(self):
+    def with_competitive_tournament(self, tournament_mode):
         self.competitive_tournament = True
+        self.tournament_mode = tournament_mode
         return self
 
     def with_keep_only(self, n):
@@ -44,7 +46,7 @@ class RewardBuilderGame(RewardBuilder):
         def reward_function(model, env):
             reward = 0
             if competitive_tournament:
-                prev_bests = env[ENV.ENV_KEY_CURRENT_POPULATION]
+                prev_bests = env[Env.ENV_KEY_TOURNAMENT]
                 if keep_only >= 1:
                     prev_bests = prev_bests[:keep_only]
                 for prev_best in prev_bests:
@@ -62,10 +64,18 @@ class RewardBuilderGame(RewardBuilder):
         agent_wrapper_func = self.agent_wrapper_func
         competitive_tournament = self.competitive_tournament
         keep_only = self.keep_only
+        tournament_mode = self.tournament_mode
 
         def update_env_f(env, new_pop):
             if competitive_tournament:
-                env = dict_functional_update(env, ENV.ENV_KEY_CURRENT_POPULATION, new_pop)
+                if tournament_mode == TournamentMode.VS_CURRENT_POP:
+                    env[Env.ENV_KEY_TOURNAMENT] = new_pop
+                elif tournament_mode == TournamentMode.VS_BEST_OF_EACH_GEN:
+                    if Env.ENV_KEY_TOURNAMENT not in env:
+                        env[Env.ENV_KEY_TOURNAMENT] = []
+                    env[Env.ENV_KEY_TOURNAMENT] += [new_pop[0]]
+                while len(env[Env.ENV_KEY_TOURNAMENT]) > keep_only:
+                    env[Env.ENV_KEY_TOURNAMENT].pop(0)
             return env
 
         return update_env_f

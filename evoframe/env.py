@@ -1,1 +1,2 @@
-ENV_KEY_CURRENT_POPULATION = "current_population"
+class Env:
+    ENV_KEY_TOURNAMENT = "tournament"
