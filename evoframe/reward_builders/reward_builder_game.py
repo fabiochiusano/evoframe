@@ -1,7 +1,7 @@
-from evoframe.env import Env
 from evoframe.reward_builders import RewardBuilder
 import copy
 from enum import Enum
+import evoframe.func_with_context as fwc
 
 class TournamentMode(Enum):
     VS_CURRENT_POP = 1
@@ -14,6 +14,7 @@ class RewardBuilderGame(RewardBuilder):
         self.competitive_tournament = False
         self.keep_only = -1
         self.tournament_mode = None
+        self.context = {}
 
     def with_game_creation_function(self, game_creation_function):
         self.game_creation_function = game_creation_function
@@ -32,6 +33,10 @@ class RewardBuilderGame(RewardBuilder):
         self.keep_only = n
         return self
 
+    def with_context(self, context):
+        self.context = context
+        return self
+
     def is_ok(self):
         game_creation_function_defined = self.game_creation_function != None
         agent_wrapper_func_defined = self.agent_wrapper_func != None
@@ -43,10 +48,10 @@ class RewardBuilderGame(RewardBuilder):
         competitive_tournament = self.competitive_tournament
         keep_only = self.keep_only
 
-        def reward_function(model, env):
+        def reward_function(context, model):
             reward = 0
             if competitive_tournament:
-                prev_bests = env[Env.ENV_KEY_TOURNAMENT]
+                prev_bests = context[fwc.CONTEXT_KEY_INDIVIDUALS] # TODO
                 if keep_only >= 1:
                     prev_bests = prev_bests[:keep_only]
                 for prev_best in prev_bests:
@@ -55,10 +60,16 @@ class RewardBuilderGame(RewardBuilder):
             else:
                 game = game_creation_function()
                 reward += game.play(agent_wrapper_func(model))
+
+            if len(context["epochs"][self.context["cur_epoch"]]["rewards"]) == 0:
+                context["epochs"][self.context["cur_epoch"]]["rewards"] = []
+            context["epochs"][self.context["cur_epoch"]]["rewards"] += [reward]
+
             return reward
 
-        return reward_function
+        return fwc.func_with_context(reward_function, context=self.context)
 
+    """
     def get_update_env_f(self):
         game_creation_function = self.game_creation_function
         agent_wrapper_func = self.agent_wrapper_func
@@ -79,10 +90,11 @@ class RewardBuilderGame(RewardBuilder):
             return env
 
         return update_env_f
+    """
 
     def get(self):
         if self.is_ok():
-            return self.get_reward_function(), self.get_update_env_f()
+            return self.get_reward_function()#, self.get_update_env_f()
         else:
             print("RewardBuilder is not correctly fed")
             return None

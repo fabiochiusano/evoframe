@@ -6,9 +6,5 @@ class RewardBuilder(ABC):
         pass
 
     @abstractmethod
-    def get_update_env_f(self):
-        pass
-
-    @abstractmethod
     def get(self):
         pass

@@ -1,4 +1,5 @@
 from evoframe.population_update_builders import PopulationUpdateBuilder
+import evoframe.func_with_context as fwc
 
 class PopulationUpdateBuilderStatic(PopulationUpdateBuilder):
     def __init__(self):
@@ -6,6 +7,7 @@ class PopulationUpdateBuilderStatic(PopulationUpdateBuilder):
         self.percs = []
         self.args_list = []
         self.selector_f = None
+        self.context = {}
 
     def add_selector_f(self, selector_f):
         self.selector_f = selector_f
@@ -15,6 +17,10 @@ class PopulationUpdateBuilderStatic(PopulationUpdateBuilder):
         self.operators.append(operator)
         self.percs.append(perc)
         self.args_list.append(args)
+        return self
+
+    def with_context(self, context):
+        self.context = context
         return self
 
     def normalize_percs(self):
@@ -31,7 +37,7 @@ class PopulationUpdateBuilderStatic(PopulationUpdateBuilder):
         args_list = self.args_list
         selector_f = self.selector_f
 
-        def update_pop_f(pop, rewards):
+        def update_pop_f(context, pop, rewards):
             pop_size = len(pop)
             new_pop = []
             for op, perc, args, i in zip(self.operators, self.percs, self.args_list, range(len(self.operators))):
@@ -46,9 +52,16 @@ class PopulationUpdateBuilderStatic(PopulationUpdateBuilder):
                     parents = self.selector_f(pop, rewards, 2)
                     new_individuals = [getattr(parents[0], op)(parents[1], *args) for i in range(num_individuals)]
                 new_pop += new_individuals
+
+                if len(context["epochs"][self.context["cur_epoch"]]["models"]) == 0:
+                    context["epochs"][self.context["cur_epoch"]]["models"] = []
+                    context["epochs"][self.context["cur_epoch"]]["operators"] = []
+                context["epochs"][self.context["cur_epoch"]]["models"] += new_individuals
+                context["epochs"][self.context["cur_epoch"]]["operators"] += [op for i in range(num_individuals)]
+
             return new_pop
 
-        return update_pop_f
+        return fwc.func_with_context(update_pop_f, context=self.context)
 
     def get(self):
         if self.is_ok():
