@@ -2,10 +2,11 @@ from evoframe.reward_builders import RewardBuilder
 import copy
 from enum import Enum
 import evoframe.func_with_context as fwc
+import numpy as np
 
 class TournamentMode(Enum):
     VS_CURRENT_POP = 1
-    VS_BEST_OF_EACH_GEN = 2
+    VS_BEST_OF_EACH_GEN = 2 # from most recent to oldest
 
 class RewardBuilderGame(RewardBuilder):
     def __init__(self):
@@ -47,16 +48,24 @@ class RewardBuilderGame(RewardBuilder):
         agent_wrapper_func = self.agent_wrapper_func
         competitive_tournament = self.competitive_tournament
         keep_only = self.keep_only
+        tournament_mode = self.tournament_mode
 
         def reward_function(context, model):
             reward = 0
             if competitive_tournament:
-                prev_bests = context[fwc.CONTEXT_KEY_INDIVIDUALS] # TODO
+                if tournament_mode == TournamentMode.VS_CURRENT_POP:
+                    opponents = context["epochs"][self.context["cur_epoch"]]["models"]
+                elif tournament_mode == TournamentMode.VS_BEST_OF_EACH_GEN:
+                    epochs = sorted(list(context["epochs"].keys()), reverse=True) # from last epoch to first epoch
+                    opponents = []
+                    for epoch in epochs:
+                        highest_reward_index = np.array(context["epochs"][epoch]["rewards"]).argmax()
+                        opponents.append(context["epochs"][epoch]["models"][highest_reward_index])
                 if keep_only >= 1:
-                    prev_bests = prev_bests[:keep_only]
-                for prev_best in prev_bests:
-                    game = game_creation_function()
-                    reward += game.play(agent_wrapper_func(model), agent_wrapper_func(prev_best))
+                    opponents = opponents[:keep_only]
+                for opponent in opponents:
+                    reward += game_creation_function().play(agent_wrapper_func(model), agent_wrapper_func(opponent))[0]
+                    reward += game_creation_function().play(agent_wrapper_func(opponent), agent_wrapper_func(model))[1]
             else:
                 game = game_creation_function()
                 reward += game.play(agent_wrapper_func(model))
@@ -68,29 +77,6 @@ class RewardBuilderGame(RewardBuilder):
             return reward
 
         return fwc.func_with_context(reward_function, context=self.context)
-
-    """
-    def get_update_env_f(self):
-        game_creation_function = self.game_creation_function
-        agent_wrapper_func = self.agent_wrapper_func
-        competitive_tournament = self.competitive_tournament
-        keep_only = self.keep_only
-        tournament_mode = self.tournament_mode
-
-        def update_env_f(env, new_pop):
-            if competitive_tournament:
-                if tournament_mode == TournamentMode.VS_CURRENT_POP:
-                    env[Env.ENV_KEY_TOURNAMENT] = new_pop
-                elif tournament_mode == TournamentMode.VS_BEST_OF_EACH_GEN:
-                    if Env.ENV_KEY_TOURNAMENT not in env:
-                        env[Env.ENV_KEY_TOURNAMENT] = []
-                    env[Env.ENV_KEY_TOURNAMENT] += [new_pop[0]]
-                while len(env[Env.ENV_KEY_TOURNAMENT]) > keep_only:
-                    env[Env.ENV_KEY_TOURNAMENT].pop(0)
-            return env
-
-        return update_env_f
-    """
 
     def get(self):
         if self.is_ok():

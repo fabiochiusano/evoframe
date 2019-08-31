@@ -1,7 +1,7 @@
 import inspect
 from abc import ABC, abstractmethod
 
-ODEL_OPERATOR_PREFIX = "es_"
+MODEL_OPERATOR_PREFIX = "es_"
 
 class Model(ABC):
     @abstractmethod
@@ -9,7 +9,7 @@ class Model(ABC):
         pass
 
     def get_operators(self):
-        model_operators = [m for m in dir(model) if m.startswith(MODEL_OPERATOR_PREFIX)]
+        model_operators = [m for m in dir(self) if m.startswith(MODEL_OPERATOR_PREFIX)]
         model_operators_summary = []
         for operator in model_operators:
             operator_method = getattr(self, operator)

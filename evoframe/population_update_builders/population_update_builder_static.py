@@ -45,19 +45,27 @@ class PopulationUpdateBuilderStatic(PopulationUpdateBuilder):
                     num_individuals = pop_size - len(new_pop)
                 else:
                     num_individuals = int(pop_size * perc)
+                new_individuals = []
                 if "_1_" in op:
-                    parent = self.selector_f(pop, rewards, 1)
-                    new_individuals = [getattr(parent[0], op)(*args) for i in range(num_individuals)]
+                    for i in range(num_individuals):
+                        parents = self.selector_f(pop, rewards, 1)
+                        new_individuals.append(getattr(parents[0], op)(*args))
                 elif "_2_" in op:
-                    parents = self.selector_f(pop, rewards, 2)
-                    new_individuals = [getattr(parents[0], op)(parents[1], *args) for i in range(num_individuals)]
+                    for i in range(num_individuals):
+                        parents = self.selector_f(pop, rewards, 2)
+                        new_individuals.append(getattr(parents[0], op)(parents[1], *args))
+                elif "_n_rewards_" in op:
+                    for i in range(num_individuals):
+                        parents = self.selector_f(pop, rewards, 1)
+                        new_individuals.append(getattr(parents[0], op)(pop, rewards, *args))
                 new_pop += new_individuals
 
                 if len(context["epochs"][self.context["cur_epoch"]]["models"]) == 0:
                     context["epochs"][self.context["cur_epoch"]]["models"] = []
                     context["epochs"][self.context["cur_epoch"]]["operators"] = []
                 context["epochs"][self.context["cur_epoch"]]["models"] += new_individuals
-                context["epochs"][self.context["cur_epoch"]]["operators"] += [op for i in range(num_individuals)]
+                op_name = op + "".join(["_" + str(arg) for arg in args])
+                context["epochs"][self.context["cur_epoch"]]["operators"] += [op_name for i in range(num_individuals)]
 
             return new_pop
 

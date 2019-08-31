@@ -18,6 +18,7 @@ class PopulationManager:
     def generate_pop(self):
         pop = [self.get_model_f() for i in range(self.pop_size)]
         self.context["epochs"][self.context["cur_epoch"]]["models"] = pop
+        self.context["epochs"][self.context["cur_epoch"]]["operators"] = ["first_gen"] * self.pop_size
         return pop
 
     def rank_pop(self, pop, rewards):

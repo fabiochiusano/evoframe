@@ -70,6 +70,33 @@ class FeedForwardNetwork(Model):
 
         return new_model
 
+    def es_n_rewards_gradient(self, pop, rewards, learning_rate=0.03, sigma=0.1):
+        new_model = FeedForwardNetwork(self.layer_sizes, self.activations, self.last_activation)
+
+        pop_size = len(pop)
+        rewards = np.array(rewards)
+        std = rewards.std()
+        if std == 0:
+            return
+        rewards = (rewards - rewards.mean()) / std # Z-score the rewards
+        update_factor = learning_rate / (pop_size * sigma)
+
+        # Update weights
+        new_weights = []
+        for index, w in enumerate(self.weights):
+            layer_population = np.array([p.weights[index] for p in pop])
+            new_weights.append(w + update_factor * np.dot(layer_population.T, rewards).T)
+        new_model.weights = np.array(new_weights)
+
+        # Update biases
+        new_biases = []
+        for index, b in enumerate(self.biases):
+            layer_population = np.array([p.biases[index] for p in pop])
+            new_biases.append(b + update_factor * np.dot(layer_population.T, rewards).T)
+        new_model.biases = np.array(new_biases)
+
+        return new_model
+
     def save(self, filename='weights.pkl'):
         with open(filename, 'wb') as fp:
             pickle.dump(self.weights, fp)
