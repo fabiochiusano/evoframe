@@ -1,7 +1,6 @@
 from evoframe.models.model import Model
 from evoframe.models.utils import mask_tensor
 import numpy as np
-import pickle
 
 class FeedForwardNetwork(Model):
     """FeedForward network without biases"""
@@ -96,11 +95,3 @@ class FeedForwardNetwork(Model):
         new_model.biases = np.array(new_biases)
 
         return new_model
-
-    def save(self, filename='weights.pkl'):
-        with open(filename, 'wb') as fp:
-            pickle.dump(self.weights, fp)
-
-    def load(self, filename='weights.pkl'):
-        with open(filename, 'rb') as fp:
-            self.weights = pickle.load(fp)

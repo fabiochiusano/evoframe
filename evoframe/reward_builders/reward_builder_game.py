@@ -13,7 +13,7 @@ class RewardBuilderGame(RewardBuilder):
         self.game_creation_function = None
         self.agent_wrapper_func = None
         self.competitive_tournament = False
-        self.keep_only = -1
+        self.keep_only = 100000000
         self.tournament_mode = None
         self.context = {}
 
@@ -56,13 +56,16 @@ class RewardBuilderGame(RewardBuilder):
                 if tournament_mode == TournamentMode.VS_CURRENT_POP:
                     opponents = context["epochs"][self.context["cur_epoch"]]["models"]
                 elif tournament_mode == TournamentMode.VS_BEST_OF_EACH_GEN:
-                    epochs = sorted(list(context["epochs"].keys()), reverse=True) # from last epoch to first epoch
+                    epochs = sorted(list(context["epochs"].keys()), reverse=True) # from last epoch
+                    cur_epoch = context["cur_epoch"]
+                    first_epoch_to_consider = max(cur_epoch - keep_only, 1)
                     opponents = []
-                    for epoch in epochs:
+                    if cur_epoch == 1: # Special case of first gen: add at least one model
+                        opponents.append(context["epochs"][cur_epoch]["models"][0])
+                    for epoch in range(first_epoch_to_consider, cur_epoch):
                         highest_reward_index = np.array(context["epochs"][epoch]["rewards"]).argmax()
                         opponents.append(context["epochs"][epoch]["models"][highest_reward_index])
-                if keep_only >= 1:
-                    opponents = opponents[:keep_only]
+                opponents = opponents[:keep_only]
                 for opponent in opponents:
                     reward += game_creation_function().play(agent_wrapper_func(model), agent_wrapper_func(opponent))[0]
                     reward += game_creation_function().play(agent_wrapper_func(opponent), agent_wrapper_func(model))[1]

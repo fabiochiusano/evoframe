@@ -1,4 +1,8 @@
 import numpy as np
+import dill as pickle
+import os
+
+MODEL_OPERATOR_PREFIX = "es_"
 
 def mask_tensor(tensor, keep_perc):
     shape = tensor.shape
@@ -8,4 +12,16 @@ def mask_tensor(tensor, keep_perc):
     mask = np.reshape(mask, shape)
     return mask
 
-MODEL_OPERATOR_PREFIX = "es_"
+def maybe_make_dir(directory):
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+def pickle_save(model, filename='model.pkl'):
+    directories = "/".join(filename.split("/")[:-1])
+    maybe_make_dir(directories)
+    with open(filename, 'wb') as fp:
+        pickle.dump(model, fp)
+
+def pickle_load(filename='model.pkl'):
+    with open(filename, 'rb') as fp:
+        return pickle.load(fp)
