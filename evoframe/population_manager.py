@@ -56,15 +56,15 @@ class PopulationManager:
             for epoch in range(1, self.context["num_epochs"] + 1):
                 if "models" in self.context["epochs"][epoch]:
                     self.save_context_epoch(epoch, experiment_name)
-            pickle_save(self.context["pop_size"], filename="{}/pop_size.pkl".format(experiment_name))
-            pickle_save(self.context["num_epochs"], filename="{}/num_epochs.pkl".format(experiment_name))
+            pickle_save(self.context["pop_size"], filename="experiments/{}/pop_size.pkl".format(experiment_name))
+            pickle_save(self.context["num_epochs"], filename="experiments/{}/num_epochs.pkl".format(experiment_name))
         else: # Pickle models that are not needed anymore in memory
             epoch_to_check = cur_epoch - self.pickle_models_after_gens
             if "models" in self.context["epochs"][epoch_to_check]:
                 self.save_context_epoch(epoch_to_check, experiment_name)
 
     def clean_experiment_directory(self, experiment_name):
-        maybe_delete_dir(experiment_name)
+        maybe_delete_dir("experiments/{}".format(experiment_name))
 
     def initialize_context(self, num_epochs):
         self.context["pop_size"] = self.pop_size
