@@ -1,8 +1,7 @@
 from pathos.multiprocessing import ProcessPool
 import numpy as np
-from evoframe.models.utils import pickle_save
-import shutil
-import os
+from evoframe.os import pickle_save, maybe_delete_dir
+from evoframe.recursive_dict import recursively_default_dict
 
 def worker_process(arg):
     # arg is a tuple (reward_func, env), where env is another tuple
@@ -10,7 +9,8 @@ def worker_process(arg):
     return reward_func(p)
 
 class PopulationManager:
-    def __init__(self, pop_size, get_model_f, reward_f, get_new_pop_func, pickle_models_after_gens=1, context={}, num_threads=1):
+    def __init__(self, pop_size, get_model_f, reward_f, get_new_pop_func,
+                pickle_models_after_gens=1, context=recursively_default_dict(), num_threads=1):
         self.pop_size = pop_size
         self.get_model_f = get_model_f
         self.reward_f = reward_f
@@ -41,14 +41,13 @@ class PopulationManager:
         return rewards
 
     def save_context_epoch(self, epoch, experiment_name):
-        context = self.context
         for i,model in enumerate(self.context["epochs"][epoch]["models"]):
-            pickle_save(model, filename="{}/models/epoch_{}/model_{}.pkl".format(experiment_name, epoch, i))
+            pickle_save(model, filename="experiments/{}/models/epoch_{}/model_{}.pkl".format(experiment_name, epoch, i))
         self.context["epochs"][epoch].pop("models", None)
         rewards = self.context["epochs"][epoch]["rewards"]
-        pickle_save(rewards, filename="{}/rewards/epoch_{}.pkl".format(experiment_name, epoch, i))
+        pickle_save(rewards, filename="experiments/{}/rewards/epoch_{}.pkl".format(experiment_name, epoch, i))
         operators = self.context["epochs"][epoch]["operators"]
-        pickle_save(operators, filename="{}/operators/epoch_{}.pkl".format(experiment_name, epoch, i))
+        pickle_save(operators, filename="experiments/{}/operators/epoch_{}.pkl".format(experiment_name, epoch, i))
         self.context["epochs"].pop(epoch, None)
 
     def pickle_models(self, experiment_name):
@@ -65,16 +64,17 @@ class PopulationManager:
                 self.save_context_epoch(epoch_to_check, experiment_name)
 
     def clean_experiment_directory(self, experiment_name):
-        if os.path.exists(experiment_name) and os.path.isdir(experiment_name):
-            shutil.rmtree(experiment_name)
-            print("Cleaned {} directory.".format(experiment_name))
+        maybe_delete_dir(experiment_name)
+
+    def initialize_context(self, num_epochs):
+        self.context["pop_size"] = self.pop_size
+        self.context["num_epochs"] = num_epochs
+        self.context["cur_epoch"] = 1
 
     def run(self, num_epochs, experiment_name):
         self.clean_experiment_directory(experiment_name)
         pool = ProcessPool(self.num_threads) if self.num_threads > 1 else None
-        self.context["pop_size"] = self.pop_size
-        self.context["num_epochs"] = num_epochs
-        self.context["cur_epoch"] = 1
+        self.initialize_context(num_epochs)
         pop = self.generate_pop()
         for cur_epoch in range(1, num_epochs + 1):
             rewards = self.compute_rewards(pool, pop)
