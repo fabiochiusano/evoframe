@@ -3,10 +3,12 @@ import copy
 from enum import Enum
 import evoframe.func_with_context as fwc
 import numpy as np
+from evoframe.os import pickle_load
 
 class TournamentMode(Enum):
     VS_CURRENT_POP = 1
     VS_BEST_OF_EACH_GEN = 2 # from most recent to oldest
+    VS_BEST_OF_GEN_EVERY = 3
 
 class RewardBuilderGame(RewardBuilder):
     def __init__(self):
@@ -65,6 +67,8 @@ class RewardBuilderGame(RewardBuilder):
                     for epoch in range(first_epoch_to_consider, cur_epoch):
                         highest_reward_index = np.array(context["epochs"][epoch]["rewards"]).argmax()
                         opponents.append(context["epochs"][epoch]["models"][highest_reward_index])
+                #elif tournament_mode == TournamentMode.VS_BEST_OF_GEN_EVERY:
+                #    pickle_load("experiments/{}/models/epoch_{}/model_{}.pkl".format(experiment_name, epoch, i_model))
                 opponents = opponents[:keep_only]
                 for opponent in opponents:
                     reward += game_creation_function().play(agent_wrapper_func(model), agent_wrapper_func(opponent))[0]
