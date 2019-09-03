@@ -13,7 +13,7 @@ def get_num_epochs(experiment_name):
 def get_pop_size(experiment_name):
     return pickle_load("experiments/{}/pop_size.pkl".format(experiment_name))
 
-def load_context(experiment_name, epochs=[1], keys=["pop_size", "num_epochs", "models", "rewards", "operators"]):
+def load_context(experiment_name, epochs=[1], keys=["models", "rewards", "operators"]):
     context = recursively_default_dict()
     if "pop_size" not in keys:
         keys += "pop_size"

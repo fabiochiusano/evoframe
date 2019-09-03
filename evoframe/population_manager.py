@@ -10,14 +10,13 @@ def worker_process(arg):
 
 class PopulationManager:
     def __init__(self, pop_size, get_model_f, reward_f, get_new_pop_func,
-                pickle_models_after_gens=1, context=recursively_default_dict(), num_threads=1):
+                context=recursively_default_dict(), num_threads=1):
         self.pop_size = pop_size
         self.get_model_f = get_model_f
         self.reward_f = reward_f
         self.get_new_pop_func = get_new_pop_func
         self.num_threads = num_threads
         self.context = context
-        self.pickle_models_after_gens = pickle_models_after_gens
 
     def generate_pop(self):
         pop = [self.get_model_f() for i in range(self.pop_size)]
@@ -45,42 +44,42 @@ class PopulationManager:
             pickle_save(model, filename="experiments/{}/models/epoch_{}/model_{}.pkl".format(experiment_name, epoch, i))
         self.context["epochs"][epoch].pop("models", None)
         rewards = self.context["epochs"][epoch]["rewards"]
-        pickle_save(rewards, filename="experiments/{}/rewards/epoch_{}.pkl".format(experiment_name, epoch, i))
+        pickle_save(rewards, filename="experiments/{}/rewards/epoch_{}.pkl".format(experiment_name, epoch))
         operators = self.context["epochs"][epoch]["operators"]
-        pickle_save(operators, filename="experiments/{}/operators/epoch_{}.pkl".format(experiment_name, epoch, i))
+        pickle_save(operators, filename="experiments/{}/operators/epoch_{}.pkl".format(experiment_name, epoch))
         self.context["epochs"].pop(epoch, None)
 
     def pickle_models(self, experiment_name):
         cur_epoch = self.context["cur_epoch"]
-        if cur_epoch == self.context["num_epochs"]: # Last epoch, save all remaining models
-            for epoch in range(1, self.context["num_epochs"] + 1):
-                if "models" in self.context["epochs"][epoch]:
-                    self.save_context_epoch(epoch, experiment_name)
-            pickle_save(self.context["pop_size"], filename="experiments/{}/pop_size.pkl".format(experiment_name))
-            pickle_save(self.context["num_epochs"], filename="experiments/{}/num_epochs.pkl".format(experiment_name))
-        else: # Pickle models that are not needed anymore in memory
-            epoch_to_check = cur_epoch - self.pickle_models_after_gens
-            if "models" in self.context["epochs"][epoch_to_check]:
-                self.save_context_epoch(epoch_to_check, experiment_name)
+        if cur_epoch == 1:
+            return
+        else:
+            self.save_context_epoch(cur_epoch - 1, experiment_name)
 
     def clean_experiment_directory(self, experiment_name):
         maybe_delete_dir("experiments/{}".format(experiment_name))
 
-    def initialize_context(self, num_epochs):
+    def initialize_context(self, num_epochs, experiment_name):
         self.context["pop_size"] = self.pop_size
         self.context["num_epochs"] = num_epochs
         self.context["cur_epoch"] = 1
+        self.context["experiment_name"] = experiment_name
+        pickle_save(self.context["pop_size"], filename="experiments/{}/pop_size.pkl".format(experiment_name))
+        pickle_save(self.context["num_epochs"], filename="experiments/{}/num_epochs.pkl".format(experiment_name))
 
     def run(self, num_epochs, experiment_name):
         self.clean_experiment_directory(experiment_name)
         pool = ProcessPool(self.num_threads) if self.num_threads > 1 else None
-        self.initialize_context(num_epochs)
+        self.initialize_context(num_epochs, experiment_name)
         pop = self.generate_pop()
         for cur_epoch in range(1, num_epochs + 1):
             rewards = self.compute_rewards(pool, pop)
             pop, rewards = self.rank_pop(pop, rewards)
-            self.pickle_models(experiment_name)
+            self.pickle_models(experiment_name) # pickle second last gen (can't pickle last because it's needed for new gen creation)
+            self.context["cur_epoch"] = cur_epoch + 1
             if cur_epoch < num_epochs:
-                self.context["cur_epoch"] = cur_epoch + 1
                 pop = self.get_new_pop_func(pop, rewards)
+            else:
+                self.pickle_models(experiment_name)
             print("Epoch {}, best reward is {}".format(cur_epoch,rewards[0]))
+            print("Number of peaks is {}".format(len(self.context["tournament"]["peak_models"])))

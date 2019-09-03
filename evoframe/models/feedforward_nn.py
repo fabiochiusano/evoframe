@@ -69,16 +69,16 @@ class FeedForwardNetwork(Model):
 
         return new_model
 
-    def es_n_rewards_gradient(self, pop, rewards, learning_rate=0.03, sigma=0.1):
+    def es_n_rewards_gradient(self, pop, rewards, learning_rate=0.3):
         new_model = FeedForwardNetwork(self.layer_sizes, self.activations, self.last_activation)
 
         pop_size = len(pop)
         rewards = np.array(rewards)
         std = rewards.std()
         if std == 0:
-            return
+            return new_model
         rewards = (rewards - rewards.mean()) / std # Z-score the rewards
-        update_factor = learning_rate / (pop_size * sigma)
+        update_factor = learning_rate / pop_size
 
         # Update weights
         new_weights = []
