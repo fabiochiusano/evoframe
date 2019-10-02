@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 class PopulationUpdateBuilder:
     @abstractmethod
-    def get_update_pop_f(self):
+    def get_update_pop_func(self):
         pass
 
     @abstractmethod

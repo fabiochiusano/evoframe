@@ -1,16 +1,15 @@
 from evoframe.population_update_builders import PopulationUpdateBuilder
-import evoframe.func_with_context as fwc
 
 class PopulationUpdateBuilderStatic(PopulationUpdateBuilder):
     def __init__(self):
         self.operators = []
         self.percs = []
         self.args_list = []
-        self.selector_f = None
+        self.selector_func = None
         self.context = {}
 
-    def add_selector_f(self, selector_f):
-        self.selector_f = selector_f
+    def add_selector_func(self, selector_func):
+        self.selector_func = selector_func
         return self
 
     def add_operator(self, operator, perc, *args):
@@ -28,16 +27,16 @@ class PopulationUpdateBuilderStatic(PopulationUpdateBuilder):
 
     def is_ok(self):
         at_least_one = len(self.operators) > 0
-        has_selector_f = self.selector_f != None
-        return at_least_one and has_selector_f
+        has_selector_func = self.selector_func != None
+        return at_least_one and has_selector_func
 
-    def get_update_pop_f(self):
+    def get_update_pop_func(self):
         operators = self.operators
         percs = self.percs
         args_list = self.args_list
-        selector_f = self.selector_f
+        selector_func = self.selector_func
 
-        def update_pop_f(context, pop, rewards):
+        def update_pop_func(context, pop, rewards):
             pop_size = len(pop)
             new_pop = []
             for op, perc, args, i in zip(self.operators, self.percs, self.args_list, range(len(self.operators))):
@@ -48,15 +47,15 @@ class PopulationUpdateBuilderStatic(PopulationUpdateBuilder):
                 new_individuals = []
                 if "_1_" in op:
                     for i in range(num_individuals):
-                        parents = self.selector_f(pop, rewards, 1)
+                        parents = self.selector_func(pop, rewards, 1)
                         new_individuals.append(getattr(parents[0], op)(*args))
                 elif "_2_" in op:
                     for i in range(num_individuals):
-                        parents = self.selector_f(pop, rewards, 2)
+                        parents = self.selector_func(pop, rewards, 2)
                         new_individuals.append(getattr(parents[0], op)(parents[1], *args))
                 elif "_n_rewards_" in op:
                     for i in range(num_individuals):
-                        parents = self.selector_f(pop, rewards, 1)
+                        parents = self.selector_func(pop, rewards, 1)
                         new_individuals.append(getattr(parents[0], op)(pop, rewards, *args))
                 new_pop += new_individuals
 
@@ -69,12 +68,12 @@ class PopulationUpdateBuilderStatic(PopulationUpdateBuilder):
 
             return new_pop
 
-        return fwc.func_with_context(update_pop_f, context=self.context)
+        return update_pop_func
 
     def get(self):
         if self.is_ok():
             self.normalize_percs()
-            return self.get_update_pop_f()
+            return self.get_update_pop_func()
         else:
             print("PopulationUpdateBuilder is not correctly fed.")
             return None

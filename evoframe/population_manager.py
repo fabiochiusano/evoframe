@@ -19,7 +19,7 @@ class PopulationManager:
         self.context = context
 
     def generate_pop(self):
-        pop = [self.get_model_f() for i in range(self.pop_size)]
+        pop = [self.get_model_f(self.context) for i in range(self.pop_size)]
         self.context["epochs"][self.context["cur_epoch"]]["models"] = pop
         self.context["epochs"][self.context["cur_epoch"]]["operators"] = ["first_gen"] * self.pop_size
         return pop
@@ -35,7 +35,7 @@ class PopulationManager:
             worker_args = ((self.reward_f, p) for p in population)
             rewards = pool.map(worker_process, worker_args)
         else:
-            rewards = [self.reward_f(p) for p in population]
+            rewards = [self.reward_f(self.context, p) for p in population]
         rewards = np.array(rewards)
         return rewards
 
@@ -78,7 +78,7 @@ class PopulationManager:
             self.pickle_models(experiment_name) # pickle second last gen (can't pickle last gen because it's needed for new gen creation)
             self.context["cur_epoch"] = cur_epoch + 1
             if cur_epoch < num_epochs:
-                pop = self.get_new_pop_func(pop, rewards)
+                pop = self.get_new_pop_func(self.context, pop, rewards)
             else:
                 self.pickle_models(experiment_name)
             print("Epoch {}, best reward is {}".format(cur_epoch,rewards[0]))

@@ -1,7 +1,6 @@
 from evoframe.reward_builders import RewardBuilder
 import copy
 from enum import Enum
-import evoframe.func_with_context as fwc
 import numpy as np
 from evoframe.os import pickle_load
 from evoframe.experiment_results import get_best_model_of_epoch
@@ -14,7 +13,7 @@ class TournamentMode(Enum):
 
 class RewardBuilderGame(RewardBuilder):
     def __init__(self):
-        self.game_creation_function = None
+        self.game_creation_func = None
         self.agent_wrapper_func = None
         self.competitive_tournament = False
         self.keep_only = 100000000
@@ -24,8 +23,8 @@ class RewardBuilderGame(RewardBuilder):
         self.max_weight = 0
         self.context = {}
 
-    def with_game_creation_function(self, game_creation_function):
-        self.game_creation_function = game_creation_function
+    def with_game_creation_func(self, game_creation_func):
+        self.game_creation_func = game_creation_func
         return self
 
     def with_agent_wrapper_func(self, agent_wrapper_func):
@@ -55,12 +54,12 @@ class RewardBuilderGame(RewardBuilder):
         return self
 
     def is_ok(self):
-        game_creation_function_defined = self.game_creation_function != None
+        game_creation_func_defined = self.game_creation_func != None
         agent_wrapper_func_defined = self.agent_wrapper_func != None
-        return game_creation_function_defined
+        return game_creation_func_defined
 
-    def get_reward_function(self):
-        game_creation_function = self.game_creation_function
+    def get_reward_func(self):
+        game_creation_func = self.game_creation_func
         agent_wrapper_func = self.agent_wrapper_func
         competitive_tournament = self.competitive_tournament
         keep_only = self.keep_only
@@ -68,7 +67,7 @@ class RewardBuilderGame(RewardBuilder):
         use_weight_normalization = self.use_weight_normalization
         max_weight = self.max_weight
 
-        def reward_function(context, model):
+        def reward_func(context, model):
             reward = 0
             if competitive_tournament:
                 cur_epoch = context["cur_epoch"]
@@ -141,10 +140,10 @@ class RewardBuilderGame(RewardBuilder):
 
                 opponents = opponents[:keep_only]
                 for opponent in opponents:
-                    reward += game_creation_function().play(agent_wrapper_func(model), agent_wrapper_func(opponent))[0]
-                    reward += game_creation_function().play(agent_wrapper_func(opponent), agent_wrapper_func(model))[1]
+                    reward += game_creation_func(context).play(agent_wrapper_func(model), agent_wrapper_func(opponent))[0]
+                    reward += game_creation_func(context).play(agent_wrapper_func(opponent), agent_wrapper_func(model))[1]
             else:
-                game = game_creation_function()
+                game = game_creation_func(context)
                 reward += game.play(agent_wrapper_func(model))
 
             if use_weight_normalization:
@@ -160,11 +159,11 @@ class RewardBuilderGame(RewardBuilder):
 
             return reward
 
-        return fwc.func_with_context(reward_function, context=self.context)
+        return reward_func
 
     def get(self):
         if self.is_ok():
-            return self.get_reward_function()#, self.get_update_env_f()
+            return self.get_reward_func()
         else:
             print("RewardBuilder is not correctly fed")
             return None
