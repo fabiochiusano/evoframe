@@ -50,12 +50,15 @@ def overlap_figures(*sub_figs):
         fig.layout.update(sub_fig.layout)
     return fig
 
-def plot_rewards(experiment_name):
+def plot_rewards(experiment_name, epochs=None):
     num_epochs = load_context(experiment_name, epochs=[1], keys=["num_epochs"])["num_epochs"]
     keys = ["pop_size", "num_epochs", "rewards", "operators"]
-    context = load_context(experiment_name, epochs=list(range(1, num_epochs + 1)), keys=keys)
+    if epochs == None:
+        context = load_context(experiment_name, epochs=list(range(1, num_epochs + 1)), keys=keys)
+        epochs = list(range(1, num_epochs + 1))
+    else:
+        context = load_context(experiment_name, epochs=epochs, keys=keys)
     pop_size = context["pop_size"]
-    epochs = list(range(1, num_epochs + 1))
     # Max-Mean
     xs = epochs
     ys_max = [max(context["epochs"][epoch]["rewards"]) for epoch in epochs]

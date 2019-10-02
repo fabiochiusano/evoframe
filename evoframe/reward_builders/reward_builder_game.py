@@ -20,6 +20,8 @@ class RewardBuilderGame(RewardBuilder):
         self.keep_only = 100000000
         self.select_every = 1
         self.tournament_mode = None
+        self.use_weight_normalization = False
+        self.max_weight = 0
         self.context = {}
 
     def with_game_creation_function(self, game_creation_function):
@@ -47,6 +49,11 @@ class RewardBuilderGame(RewardBuilder):
         self.context = context
         return self
 
+    def with_weight_normalization(self, max_weight):
+        self.use_weight_normalization = True
+        self.max_weight = max_weight
+        return self
+
     def is_ok(self):
         game_creation_function_defined = self.game_creation_function != None
         agent_wrapper_func_defined = self.agent_wrapper_func != None
@@ -58,6 +65,8 @@ class RewardBuilderGame(RewardBuilder):
         competitive_tournament = self.competitive_tournament
         keep_only = self.keep_only
         tournament_mode = self.tournament_mode
+        use_weight_normalization = self.use_weight_normalization
+        max_weight = self.max_weight
 
         def reward_function(context, model):
             reward = 0
@@ -118,9 +127,9 @@ class RewardBuilderGame(RewardBuilder):
                             context["tournament"]["best_models"] += [last_best_model]
                             context["tournament"]["best_models_rewards"] += [np.array(last_rewards).max()]
                             # look for peaks
-                            r1 = context["tournament"]["best_models_rewards"][-3]
-                            r2 = context["tournament"]["best_models_rewards"][-2]
-                            r3 = context["tournament"]["best_models_rewards"][-1]
+                            r1 = int(context["tournament"]["best_models_rewards"][-3])
+                            r2 = int(context["tournament"]["best_models_rewards"][-2])
+                            r3 = int(context["tournament"]["best_models_rewards"][-1])
                             if r1 < r2 and r2 >= r3:
                                 context["tournament"]["peak_models"] += [context["tournament"]["best_models"][-2]]
                             # apply keep_only
@@ -137,6 +146,13 @@ class RewardBuilderGame(RewardBuilder):
             else:
                 game = game_creation_function()
                 reward += game.play(agent_wrapper_func(model))
+
+            if use_weight_normalization:
+                reward_weights = np.sum([np.sum(np.power(w, 2)) for w in model.weights])
+                weights_size = np.sum([w.size for w in model.weights])
+                reward_biases = np.sum([np.sum(np.power(b, 2)) for b in model.biases])
+                biases_size = np.sum([b.size for b in model.biases])
+                reward += (max_weight - (reward_weights + reward_biases) / (weights_size + biases_size)) / max_weight
 
             if len(context["epochs"][self.context["cur_epoch"]]["rewards"]) == 0:
                 context["epochs"][self.context["cur_epoch"]]["rewards"] = []

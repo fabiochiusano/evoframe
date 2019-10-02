@@ -75,7 +75,7 @@ class PopulationManager:
         for cur_epoch in range(1, num_epochs + 1):
             rewards = self.compute_rewards(pool, pop)
             pop, rewards = self.rank_pop(pop, rewards)
-            self.pickle_models(experiment_name) # pickle second last gen (can't pickle last because it's needed for new gen creation)
+            self.pickle_models(experiment_name) # pickle second last gen (can't pickle last gen because it's needed for new gen creation)
             self.context["cur_epoch"] = cur_epoch + 1
             if cur_epoch < num_epochs:
                 pop = self.get_new_pop_func(pop, rewards)
