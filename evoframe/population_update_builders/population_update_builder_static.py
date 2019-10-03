@@ -59,12 +59,18 @@ class PopulationUpdateBuilderStatic(PopulationUpdateBuilder):
                         new_individuals.append(getattr(parents[0], op)(pop, rewards, *args))
                 new_pop += new_individuals
 
-                if len(context["epochs"][self.context["cur_epoch"]]["models"]) == 0:
-                    context["epochs"][self.context["cur_epoch"]]["models"] = []
-                    context["epochs"][self.context["cur_epoch"]]["operators"] = []
-                context["epochs"][self.context["cur_epoch"]]["models"] += new_individuals
+                #if len(context["epochs"][self.context["cur_epoch"]]["models"]) == 0:
+                    #context["epochs"][self.context["cur_epoch"]]["models"] = []
+                    #context["epochs"][self.context["cur_epoch"]]["operators"] = []
+                #context["epochs"][self.context["cur_epoch"]]["models"] += new_individuals
+                #op_name = op + "".join(["_" + str(arg) for arg in args])
+                #context["epochs"][self.context["cur_epoch"]]["operators"] += [op_name for i in range(num_individuals)]
+                if len(context["population"]["models"]) == 0:
+                    context["population"]["models"] = []
+                    context["population"]["operators"] = []
+                context["population"]["models"] += new_individuals
                 op_name = op + "".join(["_" + str(arg) for arg in args])
-                context["epochs"][self.context["cur_epoch"]]["operators"] += [op_name for i in range(num_individuals)]
+                context["population"]["operators"] += [op_name for i in range(num_individuals)]
 
             return new_pop
 

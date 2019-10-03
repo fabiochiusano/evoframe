@@ -2,6 +2,9 @@ import dill as pickle
 import os
 import shutil
 
+def exist_file(filename):
+    return os.path.exists(filename)
+
 def maybe_make_dir(directory):
     if not os.path.exists(directory):
         os.makedirs(directory)

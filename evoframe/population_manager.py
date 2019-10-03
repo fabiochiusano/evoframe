@@ -1,7 +1,7 @@
 from pathos.multiprocessing import ProcessPool
 import numpy as np
-from evoframe.os import pickle_save, maybe_delete_dir
-from evoframe.recursive_dict import recursively_default_dict
+from evoframe.os import pickle_save, pickle_load, maybe_delete_dir, exist_file
+from evoframe.context import recursively_default_dict, indexes_of_epoch
 
 def worker_process(arg):
     # arg is a tuple (reward_func, env), where env is another tuple
@@ -20,8 +20,8 @@ class PopulationManager:
 
     def generate_pop(self):
         pop = [self.get_model_f(self.context) for i in range(self.pop_size)]
-        self.context["epochs"][self.context["cur_epoch"]]["models"] = pop
-        self.context["epochs"][self.context["cur_epoch"]]["operators"] = ["first_gen"] * self.pop_size
+        self.context["population"]["models"] = pop
+        self.context["population"]["operators"] = ["first_gen"] * self.pop_size
         return pop
 
     def rank_pop(self, pop, rewards):
@@ -40,14 +40,34 @@ class PopulationManager:
         return rewards
 
     def save_context_epoch(self, epoch, experiment_name):
-        for i,model in enumerate(self.context["epochs"][epoch]["models"]):
-            pickle_save(model, filename="experiments/{}/models/epoch_{}/model_{}.pkl".format(experiment_name, epoch, i))
-        self.context["epochs"][epoch].pop("models", None)
-        rewards = self.context["epochs"][epoch]["rewards"]
-        pickle_save(rewards, filename="experiments/{}/rewards/epoch_{}.pkl".format(experiment_name, epoch))
-        operators = self.context["epochs"][epoch]["operators"]
-        pickle_save(operators, filename="experiments/{}/operators/epoch_{}.pkl".format(experiment_name, epoch))
-        self.context["epochs"].pop(epoch, None)
+        #for i,model in enumerate(self.context["epochs"][epoch]["models"]):
+            #pickle_save(model, filename="experiments/{}/models/epoch_{}/model_{}.pkl".format(experiment_name, epoch, i))
+        first_index, last_index = indexes_of_epoch(epoch, self.context)
+        for i,model in enumerate(self.context["population"]["models"]):
+            pickle_save(model, filename="experiments/{}/models/model_{}.pkl".format(experiment_name, first_index + i))
+        #self.context["epochs"][epoch].pop("models", None)
+        #rewards = self.context["epochs"][epoch]["rewards"]
+        #pickle_save(rewards, filename="experiments/{}/rewards/epoch_{}.pkl".format(experiment_name, epoch))
+        filename = "experiments/{}/rewards.pkl".format(experiment_name)
+        if exist_file(filename):
+            rewards = pickle_load(filename=filename)
+        else:
+            rewards = []
+        rewards += self.context["population"]["rewards"]
+        pickle_save(rewards, filename="experiments/{}/rewards.pkl".format(experiment_name))
+        #operators = self.context["epochs"][epoch]["operators"]
+        #pickle_save(operators, filename="experiments/{}/operators/epoch_{}.pkl".format(experiment_name, epoch))
+        filename = "experiments/{}/operators.pkl".format(experiment_name)
+        if exist_file(filename):
+            operators = pickle_load(filename=filename)
+        else:
+            operators = []
+        operators += self.context["population"]["operators"]
+        pickle_save(operators, filename="experiments/{}/operators.pkl".format(experiment_name))
+        #self.context["epochs"].pop(epoch, None)
+        self.context["population"]["models"] = self.context["population"]["models"][last_index-first_index:]
+        self.context["population"]["rewards"] = self.context["population"]["rewards"][last_index-first_index:]
+        self.context["population"]["operators"] = self.context["population"]["operators"][last_index-first_index:]
 
     def pickle_models(self, experiment_name):
         cur_epoch = self.context["cur_epoch"]

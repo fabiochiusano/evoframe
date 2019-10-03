@@ -71,29 +71,36 @@ class RewardBuilderGame(RewardBuilder):
             reward = 0
             if competitive_tournament:
                 cur_epoch = context["cur_epoch"]
+                pop_size = context["pop_size"]
 
                 if tournament_mode == TournamentMode.VS_CURRENT_POP:
-                    cur_pop = context["epochs"][cur_epoch]["models"]
+                    #cur_pop = context["epochs"][cur_epoch]["models"]
+                    cur_pop = context["population"]["models"][-pop_size:]
                     opponents = cur_pop
 
                 elif tournament_mode == TournamentMode.VS_LAST_POP:
                     if cur_epoch == 1:
-                        cur_pop = context["epochs"][cur_epoch]["models"]
+                        #cur_pop = context["epochs"][cur_epoch]["models"]
+                        cur_pop = context["population"]["models"][-pop_size:]
                         opponents = cur_pop
                     else:
-                        last_pop = context["epochs"][cur_epoch - 1]["models"]
+                        #last_pop = context["epochs"][cur_epoch - 1]["models"]
+                        last_pop = context["population"]["models"][-pop_size*2:-pop_size]
                         opponents = last_pop
 
                 elif tournament_mode == TournamentMode.VS_BEST_OF_EACH_GEN:
                     if cur_epoch == 1:
-                        cur_pop = context["epochs"][cur_epoch]["models"]
-                        opponents = [cur_pop[0]]
+                        #cur_pop = context["epochs"][cur_epoch]["models"]
+                        cur_pop = context["population"]["models"][-pop_size:]
                         context["tournament"]["models"] = []
                         context["tournament"]["last_updated_epoch"] = 1
+                        opponents = [cur_pop[0]]
                     else:
                         if context["tournament"]["last_updated_epoch"] < cur_epoch:
-                            last_pop = context["epochs"][cur_epoch - 1]["models"]
-                            last_rewards = context["epochs"][cur_epoch - 1]["rewards"]
+                            #last_pop = context["epochs"][cur_epoch - 1]["models"]
+                            last_pop = context["population"]["models"][-pop_size*2:-pop_size]
+                            #last_rewards = context["epochs"][cur_epoch - 1]["rewards"]
+                            last_rewards = context["population"]["rewards"][-pop_size:]
                             last_best_model = last_pop[np.array(last_rewards).argmax()]
                             context["tournament"]["models"] += [last_best_model]
                             context["tournament"]["models"] = context["tournament"]["models"][-keep_only:]
@@ -102,17 +109,21 @@ class RewardBuilderGame(RewardBuilder):
 
                 elif tournament_mode == TournamentMode.VS_PEAKS:
                     if cur_epoch == 1:
-                        cur_pop = context["epochs"][cur_epoch]["models"]
+                        #cur_pop = context["epochs"][cur_epoch]["models"]
+                        cur_pop = context["population"]["models"][-pop_size:]
                         opponents = [cur_pop[0]]
                         context["tournament"]["best_models"] = []
                         context["tournament"]["best_models_rewards"] = []
                         context["tournament"]["peak_models"] = []
                         context["tournament"]["last_updated_epoch"] = 1
                     elif cur_epoch <= 3:
-                        cur_pop = context["epochs"][cur_epoch]["models"]
+                        #cur_pop = context["epochs"][cur_epoch]["models"]
+                        cur_pop = context["population"]["models"][-pop_size:]
                         if context["tournament"]["last_updated_epoch"] < cur_epoch:
-                            last_pop = context["epochs"][cur_epoch - 1]["models"]
-                            last_rewards = context["epochs"][cur_epoch - 1]["rewards"]
+                            #last_pop = context["epochs"][cur_epoch - 1]["models"]
+                            last_pop = context["population"]["models"][-pop_size*2:-pop_size]
+                            #last_rewards = context["epochs"][cur_epoch - 1]["rewards"]
+                            last_rewards = context["population"]["rewards"][-pop_size:]
                             last_best_model = last_pop[np.array(last_rewards).argmax()]
                             context["tournament"]["best_models"] += [last_best_model]
                             context["tournament"]["best_models_rewards"] += [np.array(last_rewards).max()]
@@ -120,8 +131,10 @@ class RewardBuilderGame(RewardBuilder):
                         opponents = context["tournament"]["best_models"] + [cur_pop[0]]
                     else:
                         if context["tournament"]["last_updated_epoch"] < cur_epoch:
-                            last_pop = context["epochs"][cur_epoch - 1]["models"]
-                            last_rewards = context["epochs"][cur_epoch - 1]["rewards"]
+                            #last_pop = context["epochs"][cur_epoch - 1]["models"]
+                            last_pop = context["population"]["models"][-pop_size*2:-pop_size]
+                            #last_rewards = context["epochs"][cur_epoch - 1]["rewards"]
+                            last_rewards = context["population"]["rewards"][-pop_size:]
                             last_best_model = last_pop[np.array(last_rewards).argmax()]
                             context["tournament"]["best_models"] += [last_best_model]
                             context["tournament"]["best_models_rewards"] += [np.array(last_rewards).max()]
@@ -153,9 +166,12 @@ class RewardBuilderGame(RewardBuilder):
                 biases_size = np.sum([b.size for b in model.biases])
                 reward += (max_weight - (reward_weights + reward_biases) / (weights_size + biases_size)) / max_weight
 
-            if len(context["epochs"][self.context["cur_epoch"]]["rewards"]) == 0:
-                context["epochs"][self.context["cur_epoch"]]["rewards"] = []
-            context["epochs"][self.context["cur_epoch"]]["rewards"] += [reward]
+            #if len(context["epochs"][self.context["cur_epoch"]]["rewards"]) == 0:
+                #context["epochs"][self.context["cur_epoch"]]["rewards"] = []
+            #context["epochs"][self.context["cur_epoch"]]["rewards"] += [reward]
+            if len(context["population"]["rewards"]) == 0:
+                context["population"]["rewards"] = []
+            context["population"]["rewards"] += [reward]
 
             return reward
 

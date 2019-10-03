@@ -1,5 +1,5 @@
 from evoframe.os import pickle_load
-from evoframe.recursive_dict import recursively_default_dict
+from evoframe.context import recursively_default_dict, indexes_of_epoch
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -21,16 +21,24 @@ def load_context(experiment_name, epochs=[1], keys=["models", "rewards", "operat
         keys += "num_epochs"
     context["num_epochs"] = pickle_load("experiments/{}/num_epochs.pkl".format(experiment_name))
     context["pop_size"] = pickle_load("experiments/{}/pop_size.pkl".format(experiment_name))
+    context["population"]["models"] = []
+    context["population"]["rewards"] = []
+    context["population"]["operators"] = []
     for epoch in epochs:
+        first_index, last_index = indexes_of_epoch(epoch, context)
         if "models" in keys:
             models = []
             for i_model in range(context["pop_size"]):
-                models.append(pickle_load("experiments/{}/models/epoch_{}/model_{}.pkl".format(experiment_name, epoch, i_model)))
-            context["epochs"][epoch]["models"] = models
+                #models.append(pickle_load("experiments/{}/models/epoch_{}/model_{}.pkl".format(experiment_name, epoch, i_model)))
+                models.append(pickle_load("experiments/{}/models/model_{}.pkl".format(experiment_name, epoch, first_index+i_model)))
+            #context["epochs"][epoch]["models"] = models
+            context["population"]["models"] += models
         if "rewards" in keys:
-            context["epochs"][epoch]["rewards"] = pickle_load("experiments/{}/rewards/epoch_{}.pkl".format(experiment_name, epoch))
+            #context["epochs"][epoch]["rewards"] = pickle_load("experiments/{}/rewards/epoch_{}.pkl".format(experiment_name, epoch))
+            context["population"]["rewards"] += pickle_load("experiments/{}/rewards.pkl".format(experiment_name))[first_index:last_index]
         if "operators" in keys:
-            context["epochs"][epoch]["operators"] = pickle_load("experiments/{}/operators/epoch_{}.pkl".format(experiment_name, epoch))
+            #context["epochs"][epoch]["operators"] = pickle_load("experiments/{}/operators/epoch_{}.pkl".format(experiment_name, epoch))
+            context["population"]["operators"] += pickle_load("experiments/{}/operators.pkl".format(experiment_name))[first_index:last_index]
     return context
 
 def get_distinct_operators(experiment_name):
@@ -38,7 +46,9 @@ def get_distinct_operators(experiment_name):
     num_epochs = load_context(experiment_name, epochs=[1], keys=["num_epochs"])["num_epochs"]
     operators = []
     for epoch in range(1, num_epochs + 1):
-        operators.append(pickle_load("experiments/{}/operators/epoch_{}.pkl".format(experiment_name, epoch)))
+        first_index, last_index = indexes_of_epoch(epoch, context)
+        #operators.append(pickle_load("experiments/{}/operators/epoch_{}.pkl".format(experiment_name, epoch)))
+        operators.append(pickle_load("experiments/{}/operators.pkl".format(experiment_name, epoch))[first_index:last_index])
         operators = list(set(operators))
     return operators
 
@@ -54,34 +64,44 @@ def plot_rewards(experiment_name, epochs=None):
     num_epochs = load_context(experiment_name, epochs=[1], keys=["num_epochs"])["num_epochs"]
     keys = ["pop_size", "num_epochs", "rewards", "operators"]
     if epochs == None:
-        context = load_context(experiment_name, epochs=list(range(1, num_epochs + 1)), keys=keys)
         epochs = list(range(1, num_epochs + 1))
-    else:
-        context = load_context(experiment_name, epochs=epochs, keys=keys)
+    context = load_context(experiment_name, epochs=epochs, keys=keys)
     pop_size = context["pop_size"]
     # Max-Mean
     xs = epochs
-    ys_max = [max(context["epochs"][epoch]["rewards"]) for epoch in epochs]
-    ys_mean = [sum(context["epochs"][epoch]["rewards"])/context["pop_size"] for epoch in epochs]
+    #ys_max = [max(context["epochs"][epoch]["rewards"]) for epoch in epochs]
+    #ys_mean = [sum(context["epochs"][epoch]["rewards"])/context["pop_size"] for epoch in epochs]
+    ys_max = []
+    ys_mean = []
+    for i,_ in enumerate(epochs):
+        first_index, last_index = indexes_of_epoch(i+1, context)
+        ys_max.append(max(context["population"]["rewards"][first_index:last_index]))
+        ys_mean.append(sum(context["population"]["rewards"][first_index:last_index]) / pop_size)
     ys_category = ["max" for epoch in epochs] + ["mean" for epoch in epochs]
     df = pd.DataFrame({"epochs": xs*2, "rewards": ys_max+ys_mean, "category": ys_category})
     fig_line = px.line(df, x="epochs", y="rewards", color="category")
     # Scatter
-    xs = [ep + ((np.random.rand() - 0.5) * 0.4) for ep in epochs for i in range(pop_size)] # add small noise
-    ys = [r for epoch in epochs for r in context["epochs"][epoch]["rewards"]]
-    operators = [op for epoch in epochs for op in context["epochs"][epoch]["operators"]]
+    #xs = [ep + ((np.random.rand() - 0.5) * 0.4) for ep in epochs for i in range(pop_size)] # add small noise
+    #ys = [r for epoch in epochs for r in context["epochs"][epoch]["rewards"]]
+    #operators = [op for epoch in epochs for op in context["epochs"][epoch]["operators"]]
+    xs = [i/pop_size + ep for ep in epochs for i in range(pop_size)]
+    ys = context["population"]["rewards"]
+    operators = context["population"]["operators"]
     df = pd.DataFrame({"epochs": epochs*pop_size, "epochs_noise": xs, "rewards": ys, "operators": operators})
     fig_scatter = px.scatter(df, x="epochs_noise", y="rewards", color="operators", marginal_y="rug")
     return overlap_figures(fig_line, fig_scatter)
 
 def get_best_model_of_epoch(experiment_name, epoch):
     context = load_context(experiment_name, epochs=[epoch], keys=["models", "rewards"])
-    i = np.array(context["epochs"][epoch]["rewards"]).argmax()
-    return context["epochs"][epoch]["models"][i]
+    #i = np.array(context["epochs"][epoch]["rewards"]).argmax()
+    i = np.array(context["population"]["rewards"]).argmax()
+    #return context["epochs"][epoch]["models"][i]
+    return context["population"]["models"][i]
 
 def show_best_fnn_weights(experiment_name, epoch):
-    context = load_context(experiment_name, epochs=[epoch], keys=["models", "rewards"])
-    best_model = context["epochs"][epoch]["models"][0]
+    #context = load_context(experiment_name, epochs=[epoch], keys=["models", "rewards"])
+    #best_model = context["epochs"][epoch]["models"][0]
+    best_model = get_best_model_of_epoch(experiment_name, epoch)
     num_cols = 2
     num_rows = len(best_model.weights)
     subplot_titles = ["Layer "+str(i//2+1) if i%2==0 else "Bias "+str(i//2+1) for i in range(num_cols*num_rows)]
