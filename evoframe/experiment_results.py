@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 
 def get_num_epochs(experiment_name):
     return pickle_load("experiments/{}/num_epochs.pkl".format(experiment_name))
@@ -15,10 +17,6 @@ def get_pop_size(experiment_name):
 
 def load_context(experiment_name, epochs=[1], keys=["models", "rewards", "operators"]):
     context = recursively_default_dict()
-    if "pop_size" not in keys:
-        keys += "pop_size"
-    if "num_epochs" in keys:
-        keys += "num_epochs"
     context["num_epochs"] = pickle_load("experiments/{}/num_epochs.pkl".format(experiment_name))
     context["pop_size"] = pickle_load("experiments/{}/pop_size.pkl".format(experiment_name))
     context["population"]["models"] = []
@@ -26,11 +24,13 @@ def load_context(experiment_name, epochs=[1], keys=["models", "rewards", "operat
     context["population"]["operators"] = []
     for epoch in epochs:
         first_index, last_index = indexes_of_epoch(epoch, context)
+        #print(first_index, last_index)
         if "models" in keys:
             models = []
             for i_model in range(context["pop_size"]):
                 #models.append(pickle_load("experiments/{}/models/epoch_{}/model_{}.pkl".format(experiment_name, epoch, i_model)))
-                models.append(pickle_load("experiments/{}/models/model_{}.pkl".format(experiment_name, epoch, first_index+i_model)))
+                models.append(pickle_load("experiments/{}/models/model_{}.pkl".format(experiment_name, first_index+i_model)))
+                #print(first_index+i_model)
             #context["epochs"][epoch]["models"] = models
             context["population"]["models"] += models
         if "rewards" in keys:
@@ -61,8 +61,8 @@ def overlap_figures(*sub_figs):
     return fig
 
 def plot_rewards(experiment_name, epochs=None):
-    num_epochs = load_context(experiment_name, epochs=[1], keys=["num_epochs"])["num_epochs"]
-    keys = ["pop_size", "num_epochs", "rewards", "operators"]
+    num_epochs = load_context(experiment_name, epochs=[1], keys=[])["num_epochs"]
+    keys = ["rewards", "operators"]
     if epochs == None:
         epochs = list(range(1, num_epochs + 1))
     context = load_context(experiment_name, epochs=epochs, keys=keys)
@@ -87,6 +87,7 @@ def plot_rewards(experiment_name, epochs=None):
     xs = [i/pop_size + ep for ep in epochs for i in range(pop_size)]
     ys = context["population"]["rewards"]
     operators = context["population"]["operators"]
+    #print(len(epochs*pop_size), len(xs), len(ys), len(operators))
     df = pd.DataFrame({"epochs": epochs*pop_size, "epochs_noise": xs, "rewards": ys, "operators": operators})
     fig_scatter = px.scatter(df, x="epochs_noise", y="rewards", color="operators", marginal_y="rug")
     return overlap_figures(fig_line, fig_scatter)
@@ -98,15 +99,21 @@ def get_best_model_of_epoch(experiment_name, epoch):
     #return context["epochs"][epoch]["models"][i]
     return context["population"]["models"][i]
 
+def get_best_reward_of_epoch(experiment_name, epoch):
+    context = load_context(experiment_name, epochs=[epoch], keys=["rewards"])
+    #i = np.array(context["epochs"][epoch]["rewards"]).argmax()
+    return np.array(context["population"]["rewards"]).max()
+
 def show_best_fnn_weights(experiment_name, epoch):
     #context = load_context(experiment_name, epochs=[epoch], keys=["models", "rewards"])
     #best_model = context["epochs"][epoch]["models"][0]
     best_model = get_best_model_of_epoch(experiment_name, epoch)
+    best_reward = get_best_reward_of_epoch(experiment_name, epoch)
     num_cols = 2
     num_rows = len(best_model.weights)
     subplot_titles = ["Layer "+str(i//2+1) if i%2==0 else "Bias "+str(i//2+1) for i in range(num_cols*num_rows)]
     fig = make_subplots(rows=num_rows, cols=num_cols, subplot_titles=subplot_titles)
-    fig.update_layout(height=300*num_rows, width=800, title_text="NN layers at epoch " + str(epoch))
+    fig.update_layout(height=300*num_rows, width=800, title_text="NN layers at epoch " + str(epoch) + " with reward " + str(best_reward))
 
     for i,layer in enumerate(best_model.weights):
         shape = layer.shape
@@ -148,3 +155,42 @@ def show_best_fnn_weights(experiment_name, epoch):
         fig.update_xaxes(title_text="output", row=row, col=col)
         #fig.update_yaxes(title_text="output", row=row, col=col)
     return fig
+
+def plot_behavioural_differences(experiment_name, get_random_input_func, epochs=None, mode="first_best", iterations=100):
+    # mode is "first_best" or "last_best"
+    random_inputs = [get_random_input_func() for i in range(iterations)]
+    num_epochs = load_context(experiment_name, epochs=[1], keys=[])["num_epochs"]
+    if epochs == None:
+        epochs = list(range(1, num_epochs + 1))
+    best_models = [get_best_model_of_epoch(experiment_name, epoch) for epoch in epochs]
+    compare_model = best_models[0]
+    behavioural_differences = []
+    for best_model in best_models:
+        best_model_results = np.array([best_model.predict(random_input) for random_input in random_inputs])
+        compare_model_results = np.array([compare_model.predict(random_input) for random_input in random_inputs])
+        rmse = np.sqrt(np.sum(np.square(best_model_results - compare_model_results)))
+        behavioural_differences.append(rmse)
+        if mode == "last_best":
+            compare_model = best_model
+    xs = epochs
+    ys = np.array(behavioural_differences)
+    df = pd.DataFrame({"epochs": xs, "behavioural differences": ys})
+    return px.line(df, x="epochs", y="behavioural differences")
+
+def plot_params_similarity(experiment_name, epochs=None, only_best=True):
+    num_epochs = load_context(experiment_name, epochs=[1], keys=[])["num_epochs"]
+    if epochs == None:
+        epochs = list(range(1, num_epochs + 1))
+    if only_best:
+        models = [get_best_model_of_epoch(experiment_name, epoch) for epoch in epochs]
+    else:
+        models = load_context(experiment_name, epochs=epochs, keys=["models"])["population"]["models"]
+    models_params = [[w for layer in m.weights for row in layer for w in row] + [b for layer in m.biases for b in layer]
+                        for m in models]
+    tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300)
+    tsne_results = tsne.fit_transform(models_params)
+    xs = list(zip(*tsne_results))[0]
+    ys = list(zip(*tsne_results))[1]
+    zs = range(1, len(xs)+1)
+    df = pd.DataFrame({"xs": xs, "ys": ys, "zs": zs})
+    return px.scatter(df, x="xs", y="ys", color="zs")

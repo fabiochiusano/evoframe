@@ -22,3 +22,6 @@ def pickle_load(filename='obj.pkl'):
 def maybe_delete_dir(directory):
     if os.path.exists(directory) and os.path.isdir(directory):
         shutil.rmtree(directory)
+
+def clean_experiment_directory(experiment_name):
+    maybe_delete_dir("experiments/{}".format(experiment_name))

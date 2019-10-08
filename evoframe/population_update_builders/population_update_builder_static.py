@@ -6,7 +6,6 @@ class PopulationUpdateBuilderStatic(PopulationUpdateBuilder):
         self.percs = []
         self.args_list = []
         self.selector_func = None
-        self.context = {}
 
     def add_selector_func(self, selector_func):
         self.selector_func = selector_func
@@ -16,10 +15,6 @@ class PopulationUpdateBuilderStatic(PopulationUpdateBuilder):
         self.operators.append(operator)
         self.percs.append(perc)
         self.args_list.append(args)
-        return self
-
-    def with_context(self, context):
-        self.context = context
         return self
 
     def normalize_percs(self):

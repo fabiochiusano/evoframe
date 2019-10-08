@@ -21,7 +21,6 @@ class RewardBuilderGame(RewardBuilder):
         self.tournament_mode = None
         self.use_weight_normalization = False
         self.max_weight = 0
-        self.context = {}
 
     def with_game_creation_func(self, game_creation_func):
         self.game_creation_func = game_creation_func
@@ -42,10 +41,6 @@ class RewardBuilderGame(RewardBuilder):
 
     def with_select_every(self, n):
         self.select_every = n
-        return self
-
-    def with_context(self, context):
-        self.context = context
         return self
 
     def with_weight_normalization(self, max_weight):

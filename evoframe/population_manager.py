@@ -95,11 +95,11 @@ class PopulationManager:
         for cur_epoch in range(1, num_epochs + 1):
             rewards = self.compute_rewards(pool, pop)
             pop, rewards = self.rank_pop(pop, rewards)
-            self.pickle_models(experiment_name) # pickle second last gen (can't pickle last gen because it's needed for new gen creation)
+            self.pickle_models(experiment_name) # pickle second last gen (can't pickle last gen because the rewards are needed in tournament mode)
             self.context["cur_epoch"] = cur_epoch + 1
             if cur_epoch < num_epochs:
                 pop = self.get_new_pop_func(self.context, pop, rewards)
             else:
                 self.pickle_models(experiment_name)
             print("Epoch {}, best reward is {}".format(cur_epoch,rewards[0]))
-            print("Number of peaks is {}".format(len(self.context["tournament"]["peak_models"])))
+            #print("Number of peaks is {}".format(len(self.context["tournament"]["peak_models"])))
