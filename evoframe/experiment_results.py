@@ -177,8 +177,9 @@ def plot_behavioural_differences(experiment_name, get_random_input_func, epochs=
     df = pd.DataFrame({"epochs": xs, "behavioural differences": ys})
     return px.line(df, x="epochs", y="behavioural differences")
 
-def plot_params_similarity(experiment_name, epochs=None, only_best=True):
+def plot_params_similarity(experiment_name, epochs=None, only_best=True, iterations=300):
     num_epochs = load_context(experiment_name, epochs=[1], keys=[])["num_epochs"]
+    pop_size = load_context(experiment_name, epochs=[1], keys=[])["pop_size"]
     if epochs == None:
         epochs = list(range(1, num_epochs + 1))
     if only_best:
@@ -187,10 +188,29 @@ def plot_params_similarity(experiment_name, epochs=None, only_best=True):
         models = load_context(experiment_name, epochs=epochs, keys=["models"])["population"]["models"]
     models_params = [[w for layer in m.weights for row in layer for w in row] + [b for layer in m.biases for b in layer]
                         for m in models]
-    tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300)
+    tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=iterations)
     tsne_results = tsne.fit_transform(models_params)
     xs = list(zip(*tsne_results))[0]
     ys = list(zip(*tsne_results))[1]
     zs = range(1, len(xs)+1)
+    if not only_best:
+        zs = [z//pop_size for z in zs]
     df = pd.DataFrame({"xs": xs, "ys": ys, "zs": zs})
     return px.scatter(df, x="xs", y="ys", color="zs")
+
+def plot_behavioural_variances_to_input(experiment_name, get_random_input_func, epochs=None, iterations=100):
+    # mode is "first_best" or "last_best"
+    random_inputs = [get_random_input_func() for i in range(iterations)]
+    num_epochs = load_context(experiment_name, epochs=[1], keys=[])["num_epochs"]
+    if epochs == None:
+        epochs = list(range(1, num_epochs + 1))
+    best_models = [get_best_model_of_epoch(experiment_name, epoch) for epoch in epochs]
+    behavioural_variances_to_input = []
+    for best_model in best_models:
+        best_model_results = np.array([best_model.predict(random_input) for random_input in random_inputs])
+        results_variance = np.var(best_model_results)
+        behavioural_variances_to_input.append(results_variance)
+    xs = epochs
+    ys = np.array(behavioural_variances_to_input)
+    df = pd.DataFrame({"epochs": xs, "behavioural_variances_to_input": ys})
+    return px.line(df, x="epochs", y="behavioural_variances_to_input")
