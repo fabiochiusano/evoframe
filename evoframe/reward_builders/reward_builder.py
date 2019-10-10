@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 class RewardBuilder(ABC):
     @abstractmethod
-    def get_reward_func(self):
+    def get_reward_funcs(self):
         pass
 
     @abstractmethod

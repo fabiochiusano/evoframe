@@ -2,8 +2,8 @@ from evoframe.reward_builders import RewardBuilder
 import copy
 from enum import Enum
 import numpy as np
-from evoframe.os import pickle_load
-from evoframe.experiment_results import get_best_model_of_epoch
+from evoframe.utility import *
+from evoframe.context import recursively_default_dict
 
 class TournamentMode(Enum):
     VS_CURRENT_POP = 1
@@ -53,7 +53,7 @@ class RewardBuilderGame(RewardBuilder):
         agent_wrapper_func_defined = self.agent_wrapper_func != None
         return game_creation_func_defined
 
-    def get_reward_func(self):
+    def get_reward_funcs(self):
         game_creation_func = self.game_creation_func
         agent_wrapper_func = self.agent_wrapper_func
         competitive_tournament = self.competitive_tournament
@@ -62,90 +62,54 @@ class RewardBuilderGame(RewardBuilder):
         use_weight_normalization = self.use_weight_normalization
         max_weight = self.max_weight
 
-        def reward_func(context, model):
-            reward = 0
+        def get_context_func(pop, cur_epoch, pop_size):
+            context = recursively_default_dict()
             if competitive_tournament:
-                cur_epoch = context["cur_epoch"]
-                pop_size = context["pop_size"]
-
                 if tournament_mode == TournamentMode.VS_CURRENT_POP:
-                    #cur_pop = context["epochs"][cur_epoch]["models"]
-                    cur_pop = context["population"]["models"][-pop_size:]
-                    opponents = cur_pop
-
+                    context["current_pop"] = pop
                 elif tournament_mode == TournamentMode.VS_LAST_POP:
                     if cur_epoch == 1:
-                        #cur_pop = context["epochs"][cur_epoch]["models"]
-                        cur_pop = context["population"]["models"][-pop_size:]
-                        opponents = cur_pop
+                        context["last_pop"] = pop
                     else:
-                        #last_pop = context["epochs"][cur_epoch - 1]["models"]
-                        last_pop = context["population"]["models"][-pop_size*2:-pop_size]
-                        opponents = last_pop
-
+                        context["last_pop"] = pickle_load_models_of_epoch(experiment_name, cur_epoch-1, pop_size)
                 elif tournament_mode == TournamentMode.VS_BEST_OF_EACH_GEN:
                     if cur_epoch == 1:
-                        #cur_pop = context["epochs"][cur_epoch]["models"]
-                        cur_pop = context["population"]["models"][-pop_size:]
-                        context["tournament"]["models"] = []
-                        context["tournament"]["last_updated_epoch"] = 1
-                        opponents = [cur_pop[0]]
+                        context["last_bests"] = [pop[0]]
                     else:
-                        if context["tournament"]["last_updated_epoch"] < cur_epoch:
-                            #last_pop = context["epochs"][cur_epoch - 1]["models"]
-                            last_pop = context["population"]["models"][-pop_size*2:-pop_size]
-                            #last_rewards = context["epochs"][cur_epoch - 1]["rewards"]
-                            last_rewards = context["population"]["rewards"][-pop_size:]
-                            last_best_model = last_pop[np.array(last_rewards).argmax()]
-                            context["tournament"]["models"] += [last_best_model]
-                            context["tournament"]["models"] = context["tournament"]["models"][-keep_only:]
-                            context["tournament"]["last_updated_epoch"] = cur_epoch
-                        opponents = context["tournament"]["models"]
-
+                        best_models = []
+                        for epoch in range(cur_epoch - keep_only, cur_epoch):
+                            best_models.append(pickle_load_best_model_of_epoch(experiment_name, epoch, pop_size))
+                        context["last_bests"] = best_models
                 elif tournament_mode == TournamentMode.VS_PEAKS:
-                    if cur_epoch == 1:
-                        #cur_pop = context["epochs"][cur_epoch]["models"]
-                        cur_pop = context["population"]["models"][-pop_size:]
-                        opponents = [cur_pop[0]]
-                        context["tournament"]["best_models"] = []
-                        context["tournament"]["best_models_rewards"] = []
-                        context["tournament"]["peak_models"] = []
-                        context["tournament"]["last_updated_epoch"] = 1
-                    elif cur_epoch <= 3:
-                        #cur_pop = context["epochs"][cur_epoch]["models"]
-                        cur_pop = context["population"]["models"][-pop_size:]
-                        if context["tournament"]["last_updated_epoch"] < cur_epoch:
-                            #last_pop = context["epochs"][cur_epoch - 1]["models"]
-                            last_pop = context["population"]["models"][-pop_size*2:-pop_size]
-                            #last_rewards = context["epochs"][cur_epoch - 1]["rewards"]
-                            last_rewards = context["population"]["rewards"][-pop_size:]
-                            last_best_model = last_pop[np.array(last_rewards).argmax()]
-                            context["tournament"]["best_models"] += [last_best_model]
-                            context["tournament"]["best_models_rewards"] += [np.array(last_rewards).max()]
-                            context["tournament"]["last_updated_epoch"] = cur_epoch
-                        opponents = context["tournament"]["best_models"] + [cur_pop[0]]
+                    if cur_epoch <= 3:
+                        context["last_peaks"] = pop[:cur_epoch]
                     else:
-                        if context["tournament"]["last_updated_epoch"] < cur_epoch:
-                            #last_pop = context["epochs"][cur_epoch - 1]["models"]
-                            last_pop = context["population"]["models"][-pop_size*2:-pop_size]
-                            #last_rewards = context["epochs"][cur_epoch - 1]["rewards"]
-                            last_rewards = context["population"]["rewards"][-pop_size:]
-                            last_best_model = last_pop[np.array(last_rewards).argmax()]
-                            context["tournament"]["best_models"] += [last_best_model]
-                            context["tournament"]["best_models_rewards"] += [np.array(last_rewards).max()]
-                            # look for peaks
-                            r1 = int(context["tournament"]["best_models_rewards"][-3])
-                            r2 = int(context["tournament"]["best_models_rewards"][-2])
-                            r3 = int(context["tournament"]["best_models_rewards"][-1])
+                        best_models = []
+                        best_rewards = []
+                        for epoch in range(cur_epoch - keep_only, cur_epoch):
+                            best_models.append(pickle_load_best_model_of_epoch(experiment_name, epoch, pop_size))
+                            best_rewards.append(pickle_load_best_reward_of_epoch(experiment_name, epoch, pop_size))
+                        peak_models = []
+                        for i in range(2, len(best_models)):
+                            r1 = int(best_rewards[i-2])
+                            r2 = int(best_rewards[i-1])
+                            r3 = int(best_rewards[i])
                             if r1 < r2 and r2 >= r3:
-                                context["tournament"]["peak_models"] += [context["tournament"]["best_models"][-2]]
-                            # apply keep_only
-                            context["tournament"]["best_models"] = context["tournament"]["best_models"][-keep_only:]
-                            context["tournament"]["best_models_rewards"] = context["tournament"]["best_models_rewards"][-keep_only:]
-                            context["tournament"]["peak_models"] = context["tournament"]["peak_models"][-keep_only:]
-                            context["tournament"]["last_updated_epoch"] = cur_epoch
-                        opponents = (context["tournament"]["peak_models"] + context["tournament"]["best_models"])
+                                peak_models.append(best_models[i])
+                        context["last_peaks"] = (peak_models + best_models)[:keep_only]
+            return context
 
+        def reward_func(model, context, cur_epoch, pop_size):
+            reward = 0
+            if competitive_tournament:
+                if tournament_mode == TournamentMode.VS_CURRENT_POP:
+                    opponents = context["current_pop"]
+                elif tournament_mode == TournamentMode.VS_LAST_POP:
+                    opponents = context["last_pop"]
+                elif tournament_mode == TournamentMode.VS_BEST_OF_EACH_GEN:
+                    opponents = context["last_bests"]
+                elif tournament_mode == TournamentMode.VS_PEAKS:
+                    opponents = context["last_peaks"]
                 opponents = opponents[:keep_only]
                 for opponent in opponents:
                     reward += game_creation_func(context).play(agent_wrapper_func(model), agent_wrapper_func(opponent))[0]
@@ -154,27 +118,20 @@ class RewardBuilderGame(RewardBuilder):
                 game = game_creation_func(context)
                 reward += game.play(agent_wrapper_func(model))
 
-            if use_weight_normalization:
-                reward_weights = np.sum([np.sum(np.power(w, 2)) for w in model.weights])
-                weights_size = np.sum([w.size for w in model.weights])
-                reward_biases = np.sum([np.sum(np.power(b, 2)) for b in model.biases])
-                biases_size = np.sum([b.size for b in model.biases])
-                reward += (max_weight - (reward_weights + reward_biases) / (weights_size + biases_size)) / max_weight
-
-            #if len(context["epochs"][self.context["cur_epoch"]]["rewards"]) == 0:
-                #context["epochs"][self.context["cur_epoch"]]["rewards"] = []
-            #context["epochs"][self.context["cur_epoch"]]["rewards"] += [reward]
-            if len(context["population"]["rewards"]) == 0:
-                context["population"]["rewards"] = []
-            context["population"]["rewards"] += [reward]
+            #if use_weight_normalization:
+            #    reward_weights = np.sum([np.sum(np.power(w, 2)) for w in model.weights])
+            #    weights_size = np.sum([w.size for w in model.weights])
+            #    reward_biases = np.sum([np.sum(np.power(b, 2)) for b in model.biases])
+            #    biases_size = np.sum([b.size for b in model.biases])
+            #    reward += (max_weight - (reward_weights + reward_biases) / (weights_size + biases_size)) / max_weight
 
             return reward
 
-        return reward_func
+        return reward_func, get_context_func
 
     def get(self):
         if self.is_ok():
-            return self.get_reward_func()
+            return self.get_reward_funcs()
         else:
             print("RewardBuilder is not correctly fed")
             return None
