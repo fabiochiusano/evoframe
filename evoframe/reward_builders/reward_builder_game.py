@@ -62,7 +62,7 @@ class RewardBuilderGame(RewardBuilder):
         use_weight_normalization = self.use_weight_normalization
         max_weight = self.max_weight
 
-        def get_context_func(pop, cur_epoch, pop_size):
+        def get_context_func(pop, cur_epoch, pop_size, experiment_name):
             context = recursively_default_dict()
             if competitive_tournament:
                 if tournament_mode == TournamentMode.VS_CURRENT_POP:
@@ -77,7 +77,7 @@ class RewardBuilderGame(RewardBuilder):
                         context["last_bests"] = [pop[0]]
                     else:
                         best_models = []
-                        for epoch in range(cur_epoch - keep_only, cur_epoch):
+                        for epoch in range(max(cur_epoch - keep_only, 1), cur_epoch):
                             best_models.append(pickle_load_best_model_of_epoch(experiment_name, epoch, pop_size))
                         context["last_bests"] = best_models
                 elif tournament_mode == TournamentMode.VS_PEAKS:
@@ -86,7 +86,7 @@ class RewardBuilderGame(RewardBuilder):
                     else:
                         best_models = []
                         best_rewards = []
-                        for epoch in range(cur_epoch - keep_only, cur_epoch):
+                        for epoch in range(max(cur_epoch - keep_only, 1), cur_epoch):
                             best_models.append(pickle_load_best_model_of_epoch(experiment_name, epoch, pop_size))
                             best_rewards.append(pickle_load_best_reward_of_epoch(experiment_name, epoch, pop_size))
                         peak_models = []
@@ -95,7 +95,7 @@ class RewardBuilderGame(RewardBuilder):
                             r2 = int(best_rewards[i-1])
                             r3 = int(best_rewards[i])
                             if r1 < r2 and r2 >= r3:
-                                peak_models.append(best_models[i])
+                                peak_models.append(best_models[i-1])
                         context["last_peaks"] = (peak_models + best_models)[:keep_only]
             return context
 
