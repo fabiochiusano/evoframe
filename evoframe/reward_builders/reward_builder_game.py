@@ -19,8 +19,9 @@ class RewardBuilderGame(RewardBuilder):
         self.keep_only = 100000000
         self.select_every = 1
         self.tournament_mode = None
-        self.use_weight_normalization = False
-        self.max_weight = 0
+        self.gradient_operators_reward = None
+        self.modulo = None
+        self.max_weight = None
 
     def with_game_creation_func(self, game_creation_func):
         self.game_creation_func = game_creation_func
@@ -44,8 +45,15 @@ class RewardBuilderGame(RewardBuilder):
         return self
 
     def with_weight_normalization(self, max_weight):
-        self.use_weight_normalization = True
         self.max_weight = max_weight
+        return self
+
+    def with_modulo(self, modulo):
+        self.modulo = modulo
+        return self
+
+    def with_gradient_operator_reward(self, reward):
+        self.gradient_operators_reward = reward
         return self
 
     def is_ok(self):
@@ -59,7 +67,8 @@ class RewardBuilderGame(RewardBuilder):
         competitive_tournament = self.competitive_tournament
         keep_only = self.keep_only
         tournament_mode = self.tournament_mode
-        use_weight_normalization = self.use_weight_normalization
+        gradient_operators_reward = self.gradient_operators_reward
+        modulo = self.modulo
         max_weight = self.max_weight
 
         def get_context_func(pop, cur_epoch, pop_size, experiment_name):
@@ -97,9 +106,13 @@ class RewardBuilderGame(RewardBuilder):
                             if r1 < r2 and r2 >= r3:
                                 peak_models.append(best_models[i-1])
                         context["last_peaks"] = (peak_models + best_models)[:keep_only]
+
+            if gradient_operators_reward: # MMO
+                first_index, last_index = indexes_of_epoch(cur_epoch, pop_size)
+                context["current_pop_operators"] = pickle_load_operators(experiment_name)[first_index:last_index]
             return context
 
-        def reward_func(model, context, cur_epoch, pop_size):
+        def reward_func(model, context, cur_epoch, pop_size, model_index):
             reward = 0
             if competitive_tournament:
                 if tournament_mode == TournamentMode.VS_CURRENT_POP:
@@ -115,15 +128,22 @@ class RewardBuilderGame(RewardBuilder):
                     reward += game_creation_func(context).play(agent_wrapper_func(model), agent_wrapper_func(opponent))[0]
                     reward += game_creation_func(context).play(agent_wrapper_func(opponent), agent_wrapper_func(model))[1]
             else:
-                game = game_creation_func(context)
-                reward += game.play(agent_wrapper_func(model))
+                reward += game_creation_func(context).play(agent_wrapper_func(model))
 
-            #if use_weight_normalization:
-            #    reward_weights = np.sum([np.sum(np.power(w, 2)) for w in model.weights])
-            #    weights_size = np.sum([w.size for w in model.weights])
-            #    reward_biases = np.sum([np.sum(np.power(b, 2)) for b in model.biases])
-            #    biases_size = np.sum([b.size for b in model.biases])
-            #    reward += (max_weight - (reward_weights + reward_biases) / (weights_size + biases_size)) / max_weight
+            if modulo: # MMO
+                reward = (reward // modulo) * modulo
+
+            if max_weight: # MMO
+                weights_sq = np.sum([np.sum(np.power(w, 2)) for w in model.weights])
+                weights_size = np.sum([w.size for w in model.weights])
+                biases_sq = np.sum([np.sum(np.power(b, 2)) for b in model.biases])
+                biases_size = np.sum([b.size for b in model.biases])
+                geometric_average = np.sqrt((weights_sq + biases_sq) / (weights_size + biases_size)) # assuming geometric_average in [0, max_weight]
+                reward += (max_weight - geometric_average) / max_weight # scale geometric_average in [0,1]
+
+            if gradient_operators_reward: # MMO
+                if "_n_rewards_" in context["current_pop_operators"][model_index]:
+                    reward += gradient_operators_reward
 
             return reward
 
