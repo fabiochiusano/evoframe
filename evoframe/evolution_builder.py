@@ -51,7 +51,7 @@ class EvolutionBuilder:
                 worker_args = ((reward_func, (p, context, cur_epoch, pop_size, i)) for i,p in enumerate(pop))
                 rewards = pool.map(worker_process, worker_args)
             else:
-                rewards = [reward_func(p, context, cur_epoch, pop_size) for p in pop]
+                rewards = [reward_func(p, context, cur_epoch, pop_size, i) for i,p in enumerate(pop)]
             return rewards
 
         def pickle_pop_size_num_epochs(experiment_name, pop_size, num_epochs):

@@ -1,5 +1,6 @@
 import numpy as np
 from evoframe.games import Game
+from copy import deepcopy
 
 class Tris(Game):
     """Player1 starts. Rewards of both players are returned."""
@@ -12,6 +13,21 @@ class Tris(Game):
 
     def __init__(self):
         self.board = np.array([np.array([self.EMPTY for i in range(3)]) for j in range(3)])
+
+    def get_available_actions(self):
+        available_actions = []
+        for ir,row in enumerate(self.board):
+            for ic,cell in enumerate(row):
+                if cell == self.EMPTY:
+                    available_actions += [[1 if ir * 3 + ic == i else 0 for i in range(9)]]
+        return available_actions
+
+    def get_next_state(self, action):
+        board = deepcopy(self.board)
+        i_action = np.array(action).argmax()
+        i_action_row, i_action_col = i_action // 3, i_action % 3
+        board[i_action_row][i_action_col] = self.PLAYER_1
+        return board
 
     def check_win(self):
         # check rows
@@ -74,10 +90,11 @@ class Tris(Game):
         result = self.check_win()
         while result == self.CONTINUE:
             if player_turn == self.PLAYER_1:
-                prediction = agent_1.predict(self.board)
+                prediction = agent_1.predict(self)
             else:
-                prediction = agent_2.predict(self.opposite_board())
-
+                self_opposite = deepcopy(self)
+                self_opposite.board = self_opposite.opposite_board()
+                prediction = agent_2.predict(self_opposite)
             move = self.extract_move(prediction)
             self.do_move(move, player_turn)
 

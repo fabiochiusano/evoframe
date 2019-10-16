@@ -22,6 +22,7 @@ class RewardBuilderGame(RewardBuilder):
         self.gradient_operators_reward = None
         self.modulo = None
         self.max_weight = None
+        self.max_weight_scale = None
 
     def with_game_creation_func(self, game_creation_func):
         self.game_creation_func = game_creation_func
@@ -44,8 +45,9 @@ class RewardBuilderGame(RewardBuilder):
         self.select_every = n
         return self
 
-    def with_weight_normalization(self, max_weight):
+    def with_weight_normalization(self, max_weight, max_weight_scale):
         self.max_weight = max_weight
+        self.max_weight_scale = max_weight_scale
         return self
 
     def with_modulo(self, modulo):
@@ -70,6 +72,7 @@ class RewardBuilderGame(RewardBuilder):
         gradient_operators_reward = self.gradient_operators_reward
         modulo = self.modulo
         max_weight = self.max_weight
+        max_weight_scale = self.max_weight_scale
 
         def get_context_func(pop, cur_epoch, pop_size, experiment_name):
             context = recursively_default_dict()
@@ -139,7 +142,7 @@ class RewardBuilderGame(RewardBuilder):
                 biases_sq = np.sum([np.sum(np.power(b, 2)) for b in model.biases])
                 biases_size = np.sum([b.size for b in model.biases])
                 geometric_average = np.sqrt((weights_sq + biases_sq) / (weights_size + biases_size)) # assuming geometric_average in [0, max_weight]
-                reward += (max_weight - geometric_average) / max_weight # scale geometric_average in [0,1]
+                reward += ((max_weight - geometric_average) / max_weight) * max_weight_scale # scale geometric_average in [0,max_weight_scale]
 
             if gradient_operators_reward: # MMO
                 if "_n_rewards_" in context["current_pop_operators"][model_index]:

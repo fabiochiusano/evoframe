@@ -16,7 +16,7 @@ class GuessPoint(Game):
         self.outputs = outputs
 
     def play(self, agent):
-        predictions = agent.predict(self.inputs)
+        predictions = agent.predict(self)
         error = np.sum(np.square(self.outputs - predictions))
         reward = -error
         return reward

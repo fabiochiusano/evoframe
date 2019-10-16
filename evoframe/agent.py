@@ -3,8 +3,8 @@ class AgentWrapper:
         self.model = model
         self.predict_func = None
 
-    def predict(self, inputs):
-        return self.predict_func(self.model, inputs)
+    def predict(self, game):
+        return self.predict_func(self.model, game)
 
 def get_agent_wrapper_func(predict_func):
     predict_func = predict_func

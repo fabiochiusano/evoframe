@@ -20,7 +20,7 @@ def overlap_figures(*sub_figs):
         fig.layout.update(sub_fig.layout)
     return fig
 
-def plot_rewards(experiment_name, epochs=None):
+def plot_rewards(experiment_name, epochs=None, add_scatter=False):
     num_epochs = pickle_load_num_epochs(experiment_name)
     if epochs == None:
         epochs = list(range(1, num_epochs + 1))
@@ -36,6 +36,8 @@ def plot_rewards(experiment_name, epochs=None):
     ys_category = ["max" for epoch in epochs] + ["mean" for epoch in epochs]
     df = pd.DataFrame({"epochs": xs*2, "rewards": ys_max+ys_mean, "category": ys_category})
     fig_line = px.line(df, x="epochs", y="rewards", color="category")
+    if not add_scatter:
+        return fig_line
     # Scatter
     xs = [i/pop_size + ep for ep in epochs for i in range(pop_size)]
     first_index, _ = indexes_of_epoch(epochs[0], pop_size)
@@ -155,3 +157,49 @@ def plot_behavioural_variances_to_input(experiment_name, get_random_input_func, 
     ys = np.array(behavioural_variances_to_input)
     df = pd.DataFrame({"epochs": xs, "behavioural_variances_to_input": ys})
     return px.line(df, x="epochs", y="behavioural_variances_to_input")
+
+def plot_params_statistics(experiment_name, epochs=None):
+    num_epochs = pickle_load_num_epochs(experiment_name)
+    pop_size = pickle_load_pop_size(experiment_name)
+    if epochs == None:
+        epochs = list(range(1, num_epochs + 1))
+    best_models = [pickle_load_best_model_of_epoch(experiment_name, epoch, pop_size) for epoch in epochs]
+    all_means = []
+    all_variances = []
+    all_max = []
+    all_min = []
+    for i,epoch in enumerate(epochs):
+        model = best_models[i]
+        weights_means = [np.sum(w)/w.size for w in model.weights]
+        biases_means = [np.sum(b)/b.size for b in model.biases]
+        all_means += [weights_means + biases_means]
+        weights_variances = [np.var(w) for w in model.weights]
+        biases_variances = [np.var(b) for b in model.biases]
+        all_variances += [weights_variances + biases_variances]
+        weights_max = [np.max(w) for w in model.weights]
+        biases_max = [np.max(b) for b in model.biases]
+        all_max += [weights_max + biases_max]
+        weights_min = [np.min(w) for w in model.weights]
+        biases_min = [np.min(b) for b in model.biases]
+        all_min += [weights_min + biases_min]
+
+    def get_plot(all_list, epochs, y_label):
+        yss = []
+        for i_layer in range(len(all_list[0])):
+            layer_series = [all_list[i][i_layer] for i,_ in enumerate(epochs)]
+            ys = np.array(layer_series)
+            yss.append(ys)
+        xs = epochs
+        df_epoch = xs * len(all_list[0])
+        df_mean = [y for ys in yss for y in ys]
+        df_category = [["weights_{}".format(i_layer) for i in range(num_epochs)] for i_layer in range(len(all_list[0]))]
+        df_category = [x for l in df_category for x in l]
+        df = pd.DataFrame({"epoch": df_epoch,
+                           y_label: df_mean,
+                           "category": df_category})
+        return px.line(df, x="epoch", y=y_label, color="category")
+
+    return get_plot(all_means, epochs, "mean"), \
+            get_plot(all_variances, epochs, "variance"), \
+            get_plot(all_max, epochs, "max"), \
+            get_plot(all_min, epochs, "min")
