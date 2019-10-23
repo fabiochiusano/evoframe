@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
+import collections
 
 def get_distinct_operators(experiment_name):
     return list(set(pickle_load_operators(experiment_name)))
@@ -203,3 +204,123 @@ def plot_params_statistics(experiment_name, epochs=None):
             get_plot(all_variances, epochs, "variance"), \
             get_plot(all_max, epochs, "max"), \
             get_plot(all_min, epochs, "min")
+
+def plot_operators_statistics_means(experiment_name, epochs=None):
+    num_epochs = pickle_load_num_epochs(experiment_name)
+    pop_size = pickle_load_pop_size(experiment_name)
+    if epochs == None:
+        epochs = list(range(2, num_epochs + 1))
+    rewards = pickle_load_rewards(experiment_name)
+    operators = pickle_load_operators(experiment_name)
+    op_means = {}
+    for epoch in epochs:
+        first_index, last_index = indexes_of_epoch(epoch, pop_size)
+        ops = operators[first_index:last_index]
+        distinct_ops = list(set(ops))
+        rews = rewards[first_index:last_index]
+        d = collections.defaultdict(int)
+        n = collections.defaultdict(int)
+        for i,op in enumerate(ops):
+            d[op] += rews[i]
+            n[op] += 1
+        for op in distinct_ops:
+            d[op] /= n[op]
+        for op in distinct_ops:
+            if op in op_means:
+                op_means[op] += [d[op]]
+            else:
+                op_means[op] = [d[op]]
+    xs = epochs * len(op_means)
+    ys = []
+    ys_category = []
+    for op,means in op_means.items():
+        ys += means
+        ys_category += [op for i in range(len(means))]
+    df = pd.DataFrame({"epochs": xs, "average reward": ys, "operator": ys_category})
+    return px.line(df, x="epochs", y="average reward", color="operator")
+
+def plot_operators_statistics_max(experiment_name, epochs=None):
+    num_epochs = pickle_load_num_epochs(experiment_name)
+    pop_size = pickle_load_pop_size(experiment_name)
+    if epochs == None:
+        epochs = list(range(2, num_epochs + 1))
+    rewards = pickle_load_rewards(experiment_name)
+    operators = pickle_load_operators(experiment_name)
+    op_max = {}
+    for epoch in epochs:
+        first_index, last_index = indexes_of_epoch(epoch, pop_size)
+        ops = operators[first_index:last_index]
+        distinct_ops = list(set(ops))
+        rews = rewards[first_index:last_index]
+        d_list = collections.defaultdict(list)
+        for i,op in enumerate(ops):
+            d_list[op] += [rews[i]]
+        for op in distinct_ops:
+            if op in op_max:
+                op_max[op] += [max(d_list[op])]
+            else:
+                op_max[op] = [max(d_list[op])]
+    xs = epochs * len(op_max)
+    ys = []
+    ys_category = []
+    for op,max_list in op_max.items():
+        ys += max_list
+        ys_category += [op for i in range(len(max_list))]
+    df = pd.DataFrame({"epochs": xs, "max reward": ys, "operator": ys_category})
+    return px.line(df, x="epochs", y="max reward", color="operator")
+
+def plot_operators_statistics_increments(experiment_name, epochs=None):
+    num_epochs = pickle_load_num_epochs(experiment_name)
+    pop_size = pickle_load_pop_size(experiment_name)
+    if epochs == None:
+        epochs = list(range(2, num_epochs + 1))
+    rewards = pickle_load_rewards(experiment_name)
+    operators = pickle_load_operators(experiment_name)
+    op_means = {}
+    for i,epoch in enumerate(epochs):
+        prev_epoch = epochs[i]
+        first_index_prev, last_index_prev = indexes_of_epoch(epochs[i], pop_size)
+        prev_epoch_best_reward = max(rewards[first_index_prev:last_index_prev])
+        first_index, last_index = indexes_of_epoch(epoch, pop_size)
+        ops = operators[first_index:last_index]
+        distinct_ops = list(set(ops))
+        rews = rewards[first_index:last_index]
+        d = collections.defaultdict(int)
+        for i,op in enumerate(ops):
+            if rews[i] >= prev_epoch_best_reward and rews[i] >= d[op]:
+                d[op] = rews[i] - prev_epoch_best_reward
+        for op in distinct_ops:
+            if op in op_means:
+                op_means[op] += [d[op]]
+            else:
+                op_means[op] = [d[op]]
+    xs = epochs * len(op_means)
+    ys = []
+    ys_category = []
+    for op,means in op_means.items():
+        ys += means
+        ys_category += [op for i in range(len(means))]
+    df = pd.DataFrame({"epochs": xs, "average reward": ys, "operator": ys_category})
+    return px.line(df, x="epochs", y="average reward", color="operator")
+
+def plot_tournament(experiment_name, agent_wrapper_func, game_class, sample_every):
+    num_epochs = pickle_load_num_epochs(experiment_name)
+    pop_size = pickle_load_pop_size(experiment_name)
+    epochs = list(range(1, num_epochs + 1, sample_every))
+    best_models = []
+    for epoch in epochs:
+        best_models.append(agent_wrapper_func(pickle_load_best_model_of_epoch(experiment_name, epoch, pop_size)))
+    num_models = len(best_models)
+    results = collections.defaultdict(list)
+    for i in range(num_models):
+        for j in range(i+1, num_models):
+            m1 = best_models[i]
+            m2 = best_models[j]
+            r1 = game_class().play(m1, m2)
+            r2 = game_class().play(m2, m1)
+            results[i] += [r1[0] + r2[1]]
+            results[j] += [r1[1] + r2[0]]
+    xs = sorted(list(results.keys()))
+    ys = [sum(results[x]) for x in xs]
+    df = pd.DataFrame({"models": xs, "rewards": ys})
+    return px.line(df, x="models", y="rewards"), results

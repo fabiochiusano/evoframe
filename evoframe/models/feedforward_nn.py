@@ -95,3 +95,8 @@ class FeedForwardNetwork(Model):
         new_model.biases = np.array(new_biases)
 
         return new_model
+
+    def es_n_rewards_gradient_and_mutation(self, pop, rewards, learning_rate=0.3, sigma=0.3, keep_perc=0.3):
+        new_model = self.es_n_rewards_gradient(pop, rewards, learning_rate)
+        new_model = new_model.es_1_mutation(sigma, keep_perc)
+        return new_model
