@@ -49,7 +49,7 @@ def plot_rewards(experiment_name, epochs=None, add_scatter=False):
     fig_scatter = px.scatter(df, x="epochs_noise", y="rewards", color="operators", marginal_y="rug")
     return overlap_figures(fig_line, fig_scatter)
 
-def show_best_fnn_weights(experiment_name, epoch):
+def show_best_fnn_weights(experiment_name, epoch, with_bias=True):
     pop_size = pickle_load_pop_size(experiment_name)
     best_model = pickle_load_best_model_of_epoch(experiment_name, epoch, pop_size)
     best_reward = pickle_load_best_reward_of_epoch(experiment_name, epoch, pop_size)
@@ -77,24 +77,25 @@ def show_best_fnn_weights(experiment_name, epoch):
                            "yaxis{}.range".format(axis_number):sub_fig.layout.yaxis.range})
         fig.update_xaxes(title_text="output", row=row, col=col)
         fig.update_yaxes(title_text="input", row=row, col=col)
-    for i,bias in enumerate(best_model.biases):
-        bias = bias.reshape(1, bias.shape[0])
-        shape = bias.shape
-        data = [(row+1, col+1, bias[row][col]) for row in range(shape[0]) for col in range(shape[1])]
-        columns = ["1", "neuron_output", "value"]
-        df = pd.DataFrame(data=data, columns=columns)
-        sub_fig = px.density_heatmap(df, x="neuron_output", y="1", z="value",
-                                     histfunc="sum", color_continuous_scale="RdYlGn", range_color=(-2,2),
-                                     nbinsx=shape[1], nbinsy=shape[0],
-                                     range_x=(0.5, shape[1]+0.5), range_y=(0.5, shape[0]+0.5))
-        row, col = i+1, 2
-        sub_fig.data[0].xbingroup, sub_fig.data[0].ybingroup = "a_{}_{}".format(row, col), "b_{}_{}".format(row, col)
-        fig.add_trace(sub_fig.data[0], row=row, col=col)
-        axis_number = str((i+1)*num_cols)
-        fig.update_layout({"coloraxis": sub_fig.layout.coloraxis,
-                           "xaxis{}.range".format(axis_number):sub_fig.layout.xaxis.range,
-                           "yaxis{}.range".format(axis_number):sub_fig.layout.yaxis.range})
-        fig.update_xaxes(title_text="output", row=row, col=col)
+    if with_bias:
+        for i,bias in enumerate(best_model.biases):
+            bias = bias.reshape(1, bias.shape[0])
+            shape = bias.shape
+            data = [(row+1, col+1, bias[row][col]) for row in range(shape[0]) for col in range(shape[1])]
+            columns = ["1", "neuron_output", "value"]
+            df = pd.DataFrame(data=data, columns=columns)
+            sub_fig = px.density_heatmap(df, x="neuron_output", y="1", z="value",
+                                         histfunc="sum", color_continuous_scale="RdYlGn", range_color=(-2,2),
+                                         nbinsx=shape[1], nbinsy=shape[0],
+                                         range_x=(0.5, shape[1]+0.5), range_y=(0.5, shape[0]+0.5))
+            row, col = i+1, 2
+            sub_fig.data[0].xbingroup, sub_fig.data[0].ybingroup = "a_{}_{}".format(row, col), "b_{}_{}".format(row, col)
+            fig.add_trace(sub_fig.data[0], row=row, col=col)
+            axis_number = str((i+1)*num_cols)
+            fig.update_layout({"coloraxis": sub_fig.layout.coloraxis,
+                               "xaxis{}.range".format(axis_number):sub_fig.layout.xaxis.range,
+                               "yaxis{}.range".format(axis_number):sub_fig.layout.yaxis.range})
+            fig.update_xaxes(title_text="output", row=row, col=col)
     return fig
 
 def plot_behavioural_differences(experiment_name, get_random_input_func, epochs=None, mode="first_best", iterations=100):
@@ -159,7 +160,7 @@ def plot_behavioural_variances_to_input(experiment_name, get_random_input_func, 
     df = pd.DataFrame({"epochs": xs, "behavioural_variances_to_input": ys})
     return px.line(df, x="epochs", y="behavioural_variances_to_input")
 
-def plot_params_statistics(experiment_name, epochs=None):
+def plot_params_statistics(experiment_name, epochs=None, with_bias=True):
     num_epochs = pickle_load_num_epochs(experiment_name)
     pop_size = pickle_load_pop_size(experiment_name)
     if epochs == None:
@@ -172,17 +173,22 @@ def plot_params_statistics(experiment_name, epochs=None):
     for i,epoch in enumerate(epochs):
         model = best_models[i]
         weights_means = [np.sum(w)/w.size for w in model.weights]
-        biases_means = [np.sum(b)/b.size for b in model.biases]
-        all_means += [weights_means + biases_means]
+        all_means += [weights_means]
         weights_variances = [np.var(w) for w in model.weights]
-        biases_variances = [np.var(b) for b in model.biases]
-        all_variances += [weights_variances + biases_variances]
+        all_variances += [weights_variances]
         weights_max = [np.max(w) for w in model.weights]
-        biases_max = [np.max(b) for b in model.biases]
-        all_max += [weights_max + biases_max]
+        all_max += [weights_max]
         weights_min = [np.min(w) for w in model.weights]
-        biases_min = [np.min(b) for b in model.biases]
-        all_min += [weights_min + biases_min]
+        all_min += [weights_min]
+        if with_bias:
+            biases_means = [np.sum(b)/b.size for b in model.biases]
+            all_means[-1] += biases_means
+            biases_variances = [np.var(b) for b in model.biases]
+            all_variances[-1] += biases_variances
+            biases_max = [np.max(b) for b in model.biases]
+            all_max[-1] += biases_max
+            biases_min = [np.min(b) for b in model.biases]
+            all_min[-1] += biases_min
 
     def get_plot(all_list, epochs, y_label):
         yss = []

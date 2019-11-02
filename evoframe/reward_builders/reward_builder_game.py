@@ -8,8 +8,10 @@ from evoframe.context import recursively_default_dict
 class TournamentMode(Enum):
     VS_CURRENT_POP = 1
     VS_LAST_POP = 2
-    VS_BEST_OF_EACH_GEN = 3 # from most recent to oldest
+    VS_BESTS = 3 # from most recent to oldest
     VS_PEAKS = 4
+    VS_BESTS_RANDOM = 5
+    VS_BESTS_IF_INCREASE = 6
 
 class RewardBuilderGame(RewardBuilder):
     def __init__(self):
@@ -84,14 +86,14 @@ class RewardBuilderGame(RewardBuilder):
                         context["last_pop"] = pop
                     else:
                         context["last_pop"] = pickle_load_models_of_epoch(experiment_name, cur_epoch-1, pop_size)
-                elif tournament_mode == TournamentMode.VS_BEST_OF_EACH_GEN:
+                elif tournament_mode == TournamentMode.VS_BESTS:
                     if cur_epoch == 1:
-                        context["last_bests"] = [pop[0]]
+                        context["bests"] = [pop[0]]
                     else:
                         best_models = []
                         for epoch in range(max(cur_epoch - keep_only, 1), cur_epoch):
                             best_models.append(pickle_load_best_model_of_epoch(experiment_name, epoch, pop_size))
-                        context["last_bests"] = best_models
+                        context["bests"] = best_models[::-1] # from last to first
                 elif tournament_mode == TournamentMode.VS_PEAKS:
                     if cur_epoch <= 3:
                         context["last_peaks"] = pop[:cur_epoch]
@@ -108,7 +110,37 @@ class RewardBuilderGame(RewardBuilder):
                             r3 = int(best_rewards[i])
                             if r1 < r2 and r2 >= r3:
                                 peak_models.append(best_models[i-1])
+                        peak_models = peak_models[::-1] # from last to first
                         context["last_peaks"] = (peak_models + best_models)[:keep_only]
+                elif tournament_mode == TournamentMode.VS_BESTS_RANDOM:
+                    if cur_epoch == 1:
+                        context["bests"] = pop
+                    else:
+                        epochs = list(range(1, cur_epoch))
+                        selected_epochs = np.random.choice(epochs, size=keep_only, replace=True)
+                        best_models = []
+                        for epoch in selected_epochs:
+                            best_models.append(pickle_load_best_model_of_epoch(experiment_name, epoch, pop_size))
+                        context["bests"] = best_models
+                elif tournament_mode == TournamentMode.VS_BESTS_IF_INCREASE:
+                    if cur_epoch <= 2:
+                        context["last_increases"] = pop[:cur_epoch]
+                    else:
+                        best_models = []
+                        best_rewards = []
+                        for epoch in range(max(cur_epoch - keep_only, 1), cur_epoch):
+                            best_models.append(pickle_load_best_model_of_epoch(experiment_name, epoch, pop_size))
+                            best_rewards.append(pickle_load_best_reward_of_epoch(experiment_name, epoch, pop_size))
+                        increase_models = []
+                        for i in range(1, len(best_models)):
+                            r1 = int(best_rewards[i-1])
+                            r2 = int(best_rewards[i])
+                            if r1 < r2:
+                                increase_models.append(best_models[i])
+                        if len(increase_models) > 0:
+                            context["last_increases"] = (increase_models[::-1] + best_models[:2])[:keep_only]
+                        else:
+                            context["last_increases"] = pop[:cur_epoch]
 
             if gradient_operators_reward: # MMO
                 first_index, last_index = indexes_of_epoch(cur_epoch, pop_size)
@@ -122,10 +154,12 @@ class RewardBuilderGame(RewardBuilder):
                     opponents = context["current_pop"]
                 elif tournament_mode == TournamentMode.VS_LAST_POP:
                     opponents = context["last_pop"]
-                elif tournament_mode == TournamentMode.VS_BEST_OF_EACH_GEN:
-                    opponents = context["last_bests"]
+                elif tournament_mode == TournamentMode.VS_BESTS or tournament_mode == TournamentMode.VS_BESTS_RANDOM:
+                    opponents = context["bests"]
                 elif tournament_mode == TournamentMode.VS_PEAKS:
                     opponents = context["last_peaks"]
+                elif tournament_mode == TournamentMode.VS_BESTS_IF_INCREASE:
+                    opponents = context["last_increases"]
                 opponents = opponents[:keep_only]
                 for opponent in opponents:
                     reward += game_creation_func(context).play(agent_wrapper_func(model), agent_wrapper_func(opponent))[0]
@@ -139,10 +173,13 @@ class RewardBuilderGame(RewardBuilder):
             if max_weight: # MMO
                 weights_sq = np.sum([np.sum(np.power(w, 2)) for w in model.weights])
                 weights_size = np.sum([w.size for w in model.weights])
-                biases_sq = np.sum([np.sum(np.power(b, 2)) for b in model.biases])
-                biases_size = np.sum([b.size for b in model.biases])
-                geometric_average = np.sqrt((weights_sq + biases_sq) / (weights_size + biases_size)) # assuming geometric_average in [0, max_weight]
-                reward += ((max_weight - geometric_average) / max_weight) * max_weight_scale # scale geometric_average in [0,max_weight_scale]
+                if model.with_bias:
+                    biases_sq = np.sum([np.sum(np.power(b, 2)) for b in model.biases])
+                    biases_size = np.sum([b.size for b in model.biases])
+                    geometric_average = np.sqrt((weights_sq + biases_sq) / (weights_size + biases_size)) # assuming geometric_average in [0, max_weight]
+                else:
+                    geometric_average = np.sqrt((weights_sq) / (weights_size)) # assuming geometric_average in [0, max_weight]
+                reward += ((max_weight - geometric_average) / max_weight) * max_weight_scale # scale geometric_average in [0, max_weight_scale]
 
             if gradient_operators_reward: # MMO
                 if "_n_rewards_" in context["current_pop_operators"][model_index]:
